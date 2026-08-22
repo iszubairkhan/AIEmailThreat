@@ -1,0 +1,23 @@
+Received: from mail-relay1.google.com (mail-relay1.google.com [209.85.220.41])
+    by mx.targetserver.com (Postfix) with ESMTPS id 4S9xZ1234
+    for <victim@example.com>; Sat, 22 Aug 2026 10:15:30 +0530
+Received: from unknown-bad-host.net ([185.220.101.5])
+    by mail-relay1.google.com with HTTP;
+    Sat, 22 Aug 2026 10:14:10 +0530
+From: Google Security Team <no-reply@accounts.google.com>
+Return-Path: <spoofed-attacker@bad-domain.ru>
+Subject: Urgent: Verify your Google Account Password
+Date: Sat, 22 Aug 2026 10:15:30 +0530
+Message-ID: <1234567890@accounts.google.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+
+Dear user,
+
+We detected an unauthorized login attempt on your account.
+Please verify your password immediately by clicking the link below:
+
+http://g00gle-security-login-check.com/verify
+
+Thanks,
+Security Team
