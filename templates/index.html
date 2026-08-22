@@ -143,126 +143,141 @@
         </section>
     </div>
 
-    <script>
-        async function runPipeline(url, body, isForm = false) {
-            const submitBtn = document.getElementById('submitBtn');
-            const demoBtn = document.getElementById('demoBtn');
-            const loadingText = document.getElementById('loadingText');
-            const results = document.getElementById('results');
+  <script>
+    async function runPipeline(url, body, isForm = false) {
+        const submitBtn = document.getElementById('submitBtn');
+        const demoBtn = document.getElementById('demoBtn');
+        const loadingText = document.getElementById('loadingText');
+        const results = document.getElementById('results');
 
-            submitBtn.disabled = true;
-            demoBtn.disabled = true;
-            loadingText.classList.remove('hidden');
+        submitBtn.disabled = true;
+        demoBtn.disabled = true;
+        loadingText.classList.remove('hidden');
 
-            try {
-                const res = await fetch(url, { method: 'POST', body: isForm ? body : null });
-                if (!res.ok) throw new Error('Pipeline status: ' + res.status);
-                const data = await res.json();
+        try {
+            const res = await fetch(url, { method: 'POST', body: isForm ? body : null });
+            if (!res.ok) throw new Error('Pipeline returned HTTP status ' + res.status);
+            const data = await res.json();
 
-                // Fill Metadata
-                document.getElementById('resSubject').textContent = data.metadata.subject;
-                document.getElementById('resFrom').textContent = data.metadata.from;
-                document.getElementById('resReturnPath').textContent = data.metadata.return_path;
-                document.getElementById('resDate').textContent = data.metadata.date;
-                document.getElementById('resHash').textContent = data.metadata.evidence_sha256;
+            // 1. Fill Metadata Safely
+            const meta = data.metadata || {};
+            document.getElementById('resSubject').textContent = meta.subject || '(No Subject)';
+            document.getElementById('resFrom').textContent = meta.from || 'Unknown';
+            document.getElementById('resReturnPath').textContent = meta.return_path || 'Unknown';
+            document.getElementById('resDate').textContent = meta.date || 'Unknown';
+            document.getElementById('resHash').textContent = meta.evidence_sha256 || 'N/A';
 
-                // Fill Threat Assessment
-                const score = data.threat_assessment.threat_score;
-                const scoreEl = document.getElementById('resScore');
-                const badgeEl = document.getElementById('scoreBadge');
-                scoreEl.textContent = score + '%';
-                badgeEl.textContent = data.threat_assessment.risk_tier;
+            // 2. Fill Threat Assessment
+            const assessment = data.threat_assessment || { threat_score: 0, risk_tier: 'UNKNOWN', threat_reasons: [] };
+            const score = assessment.threat_score;
+            const scoreEl = document.getElementById('resScore');
+            const badgeEl = document.getElementById('scoreBadge');
+            
+            scoreEl.textContent = score + '%';
+            badgeEl.textContent = assessment.risk_tier;
 
-                if (score > 60) {
-                    scoreEl.className = "text-5xl font-black text-rose-500";
-                    badgeEl.className = "text-xs font-bold px-3 py-1 rounded-full mt-2 bg-rose-950 text-rose-400 border border-rose-800";
-                } else {
-                    scoreEl.className = "text-5xl font-black text-emerald-400";
-                    badgeEl.className = "text-xs font-bold px-3 py-1 rounded-full mt-2 bg-emerald-950 text-emerald-400 border border-emerald-800";
+            if (score > 60) {
+                scoreEl.className = "text-5xl font-black text-rose-500";
+                badgeEl.className = "text-xs font-bold px-3 py-1 rounded-full mt-2 bg-rose-950 text-rose-400 border border-rose-800";
+            } else {
+                scoreEl.className = "text-5xl font-black text-emerald-400";
+                badgeEl.className = "text-xs font-bold px-3 py-1 rounded-full mt-2 bg-emerald-950 text-emerald-400 border border-emerald-800";
+            }
+
+            // 3. Origin & VPN Attribution (With Safe Fallback)
+            const origin = data.origin_investigation;
+            if (origin && origin.ip) {
+                document.getElementById('geoIP').textContent = origin.ip || 'N/A';
+                document.getElementById('geoLocation').textContent = `${origin.city || 'Unknown'}, ${origin.country || 'Unknown'}`;
+                document.getElementById('geoISP').textContent = origin.isp || 'Unknown';
+                document.getElementById('geoASN').textContent = origin.asn || 'Unknown';
+                
+                const vpnTag = document.getElementById('vpnTag');
+                vpnTag.textContent = origin.node_type || 'Unclassified Node';
+                vpnTag.className = origin.is_anonymized ? 
+                    "text-xs font-semibold px-2.5 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800" :
+                    "text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800";
+            } else {
+                document.getElementById('geoIP').textContent = 'Internal / Non-Routable';
+                document.getElementById('geoLocation').textContent = 'Private Subnet';
+                document.getElementById('geoISP').textContent = 'Local Relay';
+                document.getElementById('geoASN').textContent = 'N/A';
+            }
+
+            // 4. DNS & NLP Cues
+            const dns = data.dns_authentication || {};
+            document.getElementById('resSPF').textContent = dns.spf || 'Not Verified';
+            document.getElementById('resDMARC').textContent = dns.dmarc || 'Not Verified';
+            
+            const cues = data.social_engineering_cues || [];
+            document.getElementById('resNLP').textContent = cues.length ? 
+                cues.join(", ") : "No explicit urgency patterns detected";
+
+            // 5. Transit Hops
+            const hopsDiv = document.getElementById('hopsList');
+            hopsDiv.innerHTML = '';
+            (data.hops || []).forEach(h => {
+                const item = document.createElement('div');
+                item.className = "p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-xs space-y-1";
+                let geoSub = '';
+                if (h.geo && h.geo.country) {
+                    geoSub = `<span class="text-sky-400 font-semibold ml-2">[${h.geo.city || 'City'}, ${h.geo.country} - ${h.geo.isp || 'ISP'}]</span>`;
                 }
+                item.innerHTML = `<div class="font-mono text-slate-300 font-bold">Hop #${h.hop_index}: IPs: ${(h.extracted_ips || []).join(', ') || 'Internal Relay'} ${geoSub}</div>
+                                  <div class="text-slate-500 font-mono text-[11px] truncate">${h.raw || ''}</div>`;
+                hopsDiv.appendChild(item);
+            });
 
-                // Origin & VPN Attribution
-                if (data.origin_investigation) {
-                    document.getElementById('geoIP').textContent = data.origin_investigation.ip;
-                    document.getElementById('geoLocation').textContent = data.origin_investigation.city + ', ' + data.origin_investigation.country;
-                    document.getElementById('geoISP').textContent = data.origin_investigation.isp;
-                    document.getElementById('geoASN').textContent = data.origin_investigation.asn;
-                    
-                    const vpnTag = document.getElementById('vpnTag');
-                    vpnTag.textContent = data.origin_investigation.node_type;
-                    vpnTag.className = data.origin_investigation.is_anonymized ? 
-                        "text-xs font-semibold px-2.5 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800" :
-                        "text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800";
-                }
+            // 6. Threat Reasons Breakdown
+            const reasonsList = document.getElementById('reasonsList');
+            reasonsList.innerHTML = '';
+            (assessment.threat_reasons || []).forEach(r => {
+                const li = document.createElement('li');
+                li.textContent = r;
+                reasonsList.appendChild(li);
+            });
 
-                // DNS & NLP
-                document.getElementById('resSPF').textContent = data.dns_authentication.spf;
-                document.getElementById('resDMARC').textContent = data.dns_authentication.dmarc;
-                document.getElementById('resNLP').textContent = data.social_engineering_cues.length ? 
-                    data.social_engineering_cues.join(", ") : "No explicit urgency patterns detected";
-
-                // Transit Hops
-                const hopsDiv = document.getElementById('hopsList');
-                hopsDiv.innerHTML = '';
-                data.hops.forEach(h => {
-                    const item = document.createElement('div');
-                    item.className = "p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-xs space-y-1";
-                    let geoSub = '';
-                    if (h.geo) {
-                        geoSub = `<span class="text-sky-400 font-semibold ml-2">[${h.geo.city}, ${h.geo.country} - ${h.geo.isp}]</span>`;
-                    }
-                    item.innerHTML = `<div class="font-mono text-slate-300 font-bold">Hop #${h.hop_index}: IPs: ${h.extracted_ips.join(', ') || 'Internal Relay'} ${geoSub}</div>
-                                      <div class="text-slate-500 font-mono text-[11px] truncate">${h.raw}</div>`;
-                    hopsDiv.appendChild(item);
-                });
-
-                // Reasons
-                const reasonsList = document.getElementById('reasonsList');
-                reasonsList.innerHTML = '';
-                data.threat_assessment.threat_reasons.forEach(r => {
+            // 7. URLs
+            const urlsList = document.getElementById('urlsList');
+            urlsList.innerHTML = '';
+            const urls = data.urls || [];
+            if (!urls.length) {
+                urlsList.innerHTML = '<li class="text-slate-500">No embedded URLs detected.</li>';
+            } else {
+                urls.forEach(u => {
                     const li = document.createElement('li');
-                    li.textContent = r;
-                    reasonsList.appendChild(li);
+                    li.textContent = u;
+                    urlsList.appendChild(li);
                 });
-
-                // URLs
-                const urlsList = document.getElementById('urlsList');
-                urlsList.innerHTML = '';
-                if (!data.urls.length) {
-                    urlsList.innerHTML = '<li class="text-slate-500">No embedded URLs detected.</li>';
-                } else {
-                    data.urls.forEach(u => {
-                        const li = document.createElement('li');
-                        li.textContent = u;
-                        urlsList.appendChild(li);
-                    });
-                }
-
-                results.classList.remove('hidden');
-            } catch (err) {
-                alert("Scan Pipeline Error: " + err.message);
-            } finally {
-                submitBtn.disabled = false;
-                demoBtn.disabled = false;
-                loadingText.classList.add('hidden');
             }
+
+            // Unhide results dashboard
+            results.classList.remove('hidden');
+        } catch (err) {
+            console.error("Pipeline failure:", err);
+            alert("Scan Pipeline Error: " + err.message);
+        } finally {
+            submitBtn.disabled = false;
+            demoBtn.disabled = false;
+            loadingText.classList.add('hidden');
         }
+    }
 
-        document.getElementById('uploadForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const f = document.getElementById('emlFile');
-            if (!f.files.length) {
-                alert("Please select a .eml file or use the 1-Click Demo.");
-                return;
-            }
-            const fd = new FormData();
-            fd.append('file', f.files[0]);
-            runPipeline('/scan', fd, true);
-        });
+    document.getElementById('uploadForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const f = document.getElementById('emlFile');
+        if (!f.files.length) {
+            alert("Please select a .eml file or use the 1-Click Demo.");
+            return;
+        }
+        const fd = new FormData();
+        fd.append('file', f.files[0]);
+        runPipeline('/scan', fd, true);
+    });
 
-        document.getElementById('demoBtn').addEventListener('click', () => {
-            runPipeline('/scan_demo', null, false);
-        });
-    </script>
+    document.getElementById('demoBtn').addEventListener('click', () => {
+        runPipeline('/scan_demo', null, false);
+    });
+</script>
 </body>
 </html>
