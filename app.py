@@ -214,35 +214,32 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-
-SCANNED_INCIDENTS = []
+CASES_DB = {}
 
 @app.route('/scan_raw', methods=['POST'])
 def scan_raw():
     data = request.get_json(silent=True)
     if not data or 'raw_email' not in data:
-        return jsonify({"error": "Missing raw_email in payload"}), 400
+        return jsonify({"error": "Missing raw_email"}), 400
     
     raw_content = data['raw_email'].encode('utf-8')
     result = analyze_email_forensics(raw_content)
     
-    # Attach incident metadata
+    # Generate unique ID and save
     case_id = str(uuid.uuid4())[:8]
+    CASES_DB[case_id] = result
+    
+    # Attach unique URL to response
     result['case_id'] = case_id
-    result['timestamp'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     result['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
     
-    # Store at the beginning of the list
-    SCANNED_INCIDENTS.insert(0, result)
-    if len(SCANNED_INCIDENTS) > 50:
-        SCANNED_INCIDENTS.pop()
-        
     return jsonify(result)
 
-@app.route('/api/recent_scans', methods=['GET'])
-def get_recent_scans():
-    return jsonify(SCANNED_INCIDENTS)
-
+@app.route('/api/get_case/<case_id>', methods=['GET'])
+def get_case(case_id):
+    if case_id in CASES_DB:
+        return jsonify(CASES_DB[case_id])
+    return jsonify({"error": "Case not found"}), 404
 @app.route('/api/get_case/<case_id>', methods=['GET'])
 def get_case(case_id):
     for incident in SCANNED_INCIDENTS:
