@@ -278,6 +278,42 @@
     document.getElementById('demoBtn').addEventListener('click', () => {
         runPipeline('/scan_demo', null, false);
     });
+
+      document.addEventListener('DOMContentLoaded', async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const caseId = urlParams.get('case');
+
+    // 1. If opened via email alert link (?case=xxxx)
+    if (caseId) {
+        try {
+            const res = await fetch(`/api/get_case/${caseId}`);
+            if (res.ok) {
+                const reportData = await res.json();
+                renderForensicReport(reportData); // your UI render function
+                return;
+            }
+        } catch (err) {
+            console.error("Error fetching specific case:", err);
+        }
+    }
+
+    // 2. Otherwise, load the latest scanned emails automatically
+    loadRealTimeFeed();
+});
+
+async function loadRealTimeFeed() {
+    try {
+        const res = await fetch('/api/recent_scans');
+        const incidents = await res.json();
+        
+        if (incidents.length > 0) {
+            // Automatically display the latest real scan on page load
+            renderForensicReport(incidents[0]);
+        }
+    } catch (err) {
+        console.error("Error loading recent live scans:", err);
+    }
+}
 </script>
 </body>
 </html>
