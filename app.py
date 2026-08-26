@@ -185,6 +185,18 @@ def analyze_email_forensics(raw_bytes: bytes):
         "social_engineering_cues": list(set(found_cues))
     }
 
+
+@app.route('/scan_raw', methods=['POST'])
+def scan_raw():
+    data = request.get_json(silent=True)
+    if not data or 'raw_email' not in data:
+        return jsonify({"error": "Missing raw_email in payload"}), 400
+    
+    raw_content = data['raw_email'].encode('utf-8')
+    result = analyze_email_forensics(raw_content)
+    return jsonify(result)
+
+
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -204,3 +216,8 @@ def scan_demo():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
+if __name__ == '__main__':
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
