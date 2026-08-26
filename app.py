@@ -7,6 +7,8 @@ from email import policy
 from flask import Flask, render_template, request, jsonify
 import dns.resolver
 import requests
+import uuid
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -221,3 +223,39 @@ if __name__ == '__main__':
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
+
+SCANNED_INCIDENTS = []
+
+@app.route('/scan_raw', methods=['POST'])
+def scan_raw():
+    data = request.get_json(silent=True)
+    if not data or 'raw_email' not in data:
+        return jsonify({"error": "Missing raw_email in payload"}), 400
+    
+    raw_content = data['raw_email'].encode('utf-8')
+    result = analyze_email_forensics(raw_content)
+    
+    # Attach incident metadata
+    case_id = str(uuid.uuid4())[:8]
+    result['case_id'] = case_id
+    result['timestamp'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    result['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
+    
+    # Store at the beginning of the list
+    SCANNED_INCIDENTS.insert(0, result)
+    if len(SCANNED_INCIDENTS) > 50:
+        SCANNED_INCIDENTS.pop()
+        
+    return jsonify(result)
+
+@app.route('/api/recent_scans', methods=['GET'])
+def get_recent_scans():
+    return jsonify(SCANNED_INCIDENTS)
+
+@app.route('/api/get_case/<case_id>', methods=['GET'])
+def get_case(case_id):
+    for incident in SCANNED_INCIDENTS:
+        if incident.get('case_id') == case_id:
+            return jsonify(incident)
+    return jsonify({"error": "Incident not found"}), 404
