@@ -188,16 +188,6 @@ def analyze_email_forensics(raw_bytes: bytes):
     }
 
 
-@app.route('/scan_raw', methods=['POST'])
-def scan_raw():
-    data = request.get_json(silent=True)
-    if not data or 'raw_email' not in data:
-        return jsonify({"error": "Missing raw_email in payload"}), 400
-    
-    raw_content = data['raw_email'].encode('utf-8')
-    result = analyze_email_forensics(raw_content)
-    return jsonify(result)
-
 
 @app.route('/')
 def home():
