@@ -314,13 +314,30 @@ async function loadRealTimeFeed() {
         console.error("Error loading recent live scans:", err);
     }
 }
-      window.addEventListener('DOMContentLoaded', async () => {
+ window.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const caseId = urlParams.get('case');
 
     if (caseId) {
-        // Automatically trigger forensic pipeline for this specific case
-        runPipeline(`/api/get_case/${caseId}`, null, false);
+        try {
+            const res = await fetch(`/api/get_case/${caseId}`);
+            if (res.ok) {
+                const reportData = await res.json();
+                
+                // Directly call the UI rendering function with the fetched data
+                if (typeof renderDashboard === "function") {
+                    renderDashboard(reportData);
+                } else if (typeof updateUI === "function") {
+                    updateUI(reportData);
+                } else if (typeof displayResults === "function") {
+                    displayResults(reportData);
+                }
+            } else {
+                console.error("Case ID not found:", caseId);
+            }
+        } catch (err) {
+            console.error("Failed to load case data:", err);
+        }
     }
 });
 </script>
