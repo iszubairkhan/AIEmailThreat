@@ -314,6 +314,15 @@ async function loadRealTimeFeed() {
         console.error("Error loading recent live scans:", err);
     }
 }
+      window.addEventListener('DOMContentLoaded', async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const caseId = urlParams.get('case');
+
+    if (caseId) {
+        // Automatically trigger forensic pipeline for this specific case
+        runPipeline(`/api/get_case/${caseId}`, null, false);
+    }
+});
 </script>
 
 <footer class="mt-10 text-center text-slate-500 text-xs">
