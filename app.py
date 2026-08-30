@@ -4,13 +4,15 @@ import datetime
 import hashlib
 import email
 from email import policy
-from flask import Flask, render_template, request, jsonify
-import dns.resolver
-import requests
 import uuid
-from datetime import datetime
+import requests
+import dns.resolver
+from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
+
+# Persistent In-Memory Case Cache for Direct URL Routing (?case=<case_id>)
+CASES_DB = {}
 
 # Heuristic lists for detection
 BEC_URGENCY_PATTERNS = [
@@ -20,7 +22,10 @@ BEC_URGENCY_PATTERNS = [
     r"\b(unauthorized login|compromised account|termination of access)\b"
 ]
 
-KNOWN_DATACENTER_ORGS = ["m247", "ovh", "digitalocean", "linode", "aws", "amazon", "tor", "vpn", "datacamp", "cloudflare"]
+KNOWN_DATACENTER_ORGS = [
+    "m247", "ovh", "digitalocean", "linode", "aws", "amazon", 
+    "tor", "vpn", "datacamp", "cloudflare", "hetzner"
+]
 
 def get_ip_intelligence(ip_address: str):
     """Resolves Geolocation, ASN, and flags VPN / Datacenter infrastructure."""
@@ -135,7 +140,7 @@ def analyze_email_forensics(raw_bytes: bytes):
 
     found_cues = []
     for pattern in BEC_URGENCY_PATTERNS:
-        matches = re.findall(pattern, body_content, re.IGNORECASE)
+        matches = re.findall(pattern, str(body_content), re.IGNORECASE)
         if matches:
             found_cues.extend(matches)
 
@@ -187,7 +192,9 @@ def analyze_email_forensics(raw_bytes: bytes):
         "social_engineering_cues": list(set(found_cues))
     }
 
-
+# ==========================================
+# FLASK ROUTING ENDPOINTS
+# ==========================================
 
 @app.route('/')
 def home():
@@ -200,21 +207,23 @@ def scan_file():
     f = request.files['file']
     return jsonify(analyze_email_forensics(f.read()))
 
-@app.route('/scan_demo', methods=['POST'])
+@app.route('/scan_demo', methods=['POST', 'GET'])
 def scan_demo():
     sample_path = os.path.join(os.path.dirname(__file__), "sample_attack.eml")
-    with open(sample_path, "rb") as f:
-        return jsonify(analyze_email_forensics(f.read()))
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-
-if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-CASES_DB = {}
+    if os.path.exists(sample_path):
+        with open(sample_path, "rb") as f:
+            raw_bytes = f.read()
+    else:
+        # High-threat synthetic sample fallback
+        raw_bytes = (
+            b"Received: from 185.220.101.5 by mail.relay.org; Sun, 30 Aug 2026 12:00:00 +0000\r\n"
+            b"From: Security Support <support@paypal.com>\r\n"
+            b"Return-Path: <attacker@evil-relay.net>\r\n"
+            b"Subject: URGENT: Account Suspension Notice\r\n"
+            b"\r\n"
+            b"Immediate action required! Your account will be suspended within 24 hours. Please verify password here: http://phish-login.com"
+        )
+    return jsonify(analyze_email_forensics(raw_bytes))
 
 @app.route('/scan_raw', methods=['POST'])
 def scan_raw():
@@ -225,11 +234,11 @@ def scan_raw():
     raw_content = data['raw_email'].encode('utf-8')
     result = analyze_email_forensics(raw_content)
     
-    # Generate unique ID and save
+    # Generate persistent unique 8-character Case ID
     case_id = str(uuid.uuid4())[:8]
     CASES_DB[case_id] = result
     
-    # Attach unique URL to response
+    # Attach tracking URL to response
     result['case_id'] = case_id
     result['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
     
@@ -240,9 +249,11 @@ def get_case(case_id):
     if case_id in CASES_DB:
         return jsonify(CASES_DB[case_id])
     return jsonify({"error": "Case not found"}), 404
-@app.route('/api/get_case/<case_id>', methods=['GET'])
-def get_case(case_id):
-    for incident in SCANNED_INCIDENTS:
-        if incident.get('case_id') == case_id:
-            return jsonify(incident)
-    return jsonify({"error": "Incident not found"}), 404
+
+# ==========================================
+# SERVER ENTRYPOINT
+# ==========================================
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
