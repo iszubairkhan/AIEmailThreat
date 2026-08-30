@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Email Threat Sentinel — SOC Forensic Platform</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -34,7 +33,7 @@
         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-slow"></span>
         SOC ENGINE LIVE
       </div>
-      <button onclick="openActivationModal()" class="bg-sky-600 hover:bg-sky-500 transition text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg shadow-sky-600/20">
+      <button onclick="openActivationModal()" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 transition text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-sky-600/20">
         <i class="fa-solid fa-bolt"></i> Activate on Any Device
       </button>
     </div>
@@ -43,7 +42,7 @@
   <!-- Main Container -->
   <main class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow space-y-6">
 
-    <!-- Top Action Banner -->
+    <!-- Top Action Card -->
     <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
       <div class="absolute -right-10 -top-10 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
       
@@ -51,18 +50,17 @@
         <div class="space-y-1 text-center md:text-left">
           <h2 class="text-xl font-extrabold text-white">Zero-Detonation Automated Forensic Triage</h2>
           <p class="text-sm text-slate-400 max-w-xl">
-            Inspect headers, trace origin MTA hops, query live DMARC policies, and freeze Section 65B SHA-256 evidence in isolated memory.
+            Inspect headers, trace origin MTA hops, evaluate DMARC enforcement, and seal Section 65B SHA-256 evidence.
           </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
           <button onclick="runSampleThreatDemo()" id="demoBtn" class="bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-indigo-500/25 flex items-center gap-2">
-            <i class="fa-solid fa-play"></i> 1-Click Sample Threat Demo
+            <i class="fa-solid fa-play"></i> 1-Click Live Threat Demo
           </button>
-          <button onclick="document.getElementById('manualEmlInput').click()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold px-4 py-3 rounded-xl text-sm transition flex items-center gap-2">
-            <i class="fa-solid fa-file-arrow-up"></i> Load Raw .EML
+          <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-400 font-semibold px-4 py-3 rounded-xl text-sm transition flex items-center gap-2">
+            <i class="fa-solid fa-gear"></i> Setup Device Integration
           </button>
-          <input type="file" id="manualEmlInput" accept=".eml,.txt" class="hidden" onchange="handleManualUpload(event)">
         </div>
       </div>
     </div>
@@ -70,16 +68,16 @@
     <!-- Live Case Forensic Results Area -->
     <div id="resultsSection" class="hidden space-y-6">
       
-      <!-- Threat Overview Card -->
+      <!-- Metrics Row -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <!-- Threat Gauge Metric -->
+        <!-- Threat Gauge -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Threat Score</span>
           <div class="flex items-baseline gap-2 my-2">
             <span id="threatScoreVal" class="text-4xl font-black text-rose-500">85%</span>
             <span id="riskTierVal" class="text-xs font-bold uppercase px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">Critical</span>
           </div>
-          <span class="text-xs text-slate-500">Heuristic multi-factor penalty score</span>
+          <span class="text-xs text-slate-500">Composite multi-vector risk</span>
         </div>
 
         <!-- Origin IP & Location -->
@@ -91,7 +89,7 @@
             </div>
             <div id="originIpVal" class="text-xs font-mono text-slate-400 mt-0.5">185.220.101.5</div>
           </div>
-          <span id="nodeTypeVal" class="text-xs text-amber-400 font-semibold">Datacenter / Tor Exit Relay</span>
+          <span id="nodeTypeVal" class="text-xs text-amber-400 font-semibold">Datacenter / Tor Relay Node</span>
         </div>
 
         <!-- DNS Protocol Status -->
@@ -105,7 +103,7 @@
               <span>DMARC Policy:</span> <span id="dmarcVal" class="font-bold text-amber-400">p=none (Vulnerable)</span>
             </div>
           </div>
-          <span class="text-xs text-slate-500">Live public DNS resolver query</span>
+          <span class="text-xs text-slate-500">Live DNS TXT verification</span>
         </div>
 
         <!-- Section 65B Evidence Seal -->
@@ -123,31 +121,31 @@
         </div>
       </div>
 
-      <!-- MTA Hop Traversal & Reasons -->
+      <!-- MTA Hop Traversal & Indicators -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- Detected Risk Factors -->
+        <!-- Threat Indicators -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
           <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-            <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Detected Threat Indicators
+            <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Threat Indicators
           </h3>
           <ul id="reasonsList" class="space-y-2 text-xs text-slate-300">
             <li class="flex items-start gap-2 bg-slate-950/60 p-2 rounded border border-slate-800">
               <i class="fa-solid fa-xmark text-rose-400 mt-0.5"></i>
-              <span>Display header spoofing (Claimed: <code>paypal.com</code> vs Return-Path: <code>evil-relay.net</code>).</span>
+              <span>Display header mismatch (Claimed: <code>paypal.com</code> vs Return-Path: <code>evil-relay.net</code>).</span>
             </li>
             <li class="flex items-start gap-2 bg-slate-950/60 p-2 rounded border border-slate-800">
               <i class="fa-solid fa-xmark text-rose-400 mt-0.5"></i>
-              <span>Unenforced DMARC policy allows unauthenticated spoofing.</span>
+              <span>Unenforced DMARC (<code>p=none</code>) enables identity spoofing.</span>
             </li>
             <li class="flex items-start gap-2 bg-slate-950/60 p-2 rounded border border-slate-800">
               <i class="fa-solid fa-xmark text-rose-400 mt-0.5"></i>
-              <span>High NLP Urgency score ("Urgent: Wire Transfer Required").</span>
+              <span>High NLP Urgency detected in plain body text.</span>
             </li>
           </ul>
         </div>
 
-        <!-- Visual Reverse MTA Hop Map -->
+        <!-- Reverse Hop Map -->
         <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
           <div class="flex items-center justify-between">
             <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -157,33 +155,30 @@
           </div>
 
           <div class="space-y-2 text-xs font-mono">
-            <!-- Hop 3: Origin -->
             <div class="bg-rose-950/40 border border-rose-500/30 p-3 rounded-lg flex items-center justify-between">
               <div>
                 <span class="font-bold text-rose-400">[HOP 1 - SENDER ORIGIN]</span>
-                <p class="text-slate-200 mt-0.5">185.220.101.5 (Tor Exit Node / VPS)</p>
-                <span class="text-[10px] text-rose-300/80">Identified via bottom Received: header extraction</span>
+                <p class="text-slate-200 mt-0.5">185.220.101.5 (Tor Exit / Datacenter Node)</p>
+                <span class="text-[10px] text-rose-300/80">Earliest external public IP isolated</span>
               </div>
               <span class="text-xs bg-rose-500/20 text-rose-300 px-2 py-1 rounded font-sans font-bold">Origin Exposed</span>
             </div>
 
             <div class="text-center text-slate-600 my-1"><i class="fa-solid fa-arrow-down"></i></div>
 
-            <!-- Hop 2: Intermediate Relay -->
             <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between text-slate-400">
               <div>
-                <span class="font-bold text-slate-300">[HOP 2 - CLOUD RELAY]</span>
+                <span class="font-bold text-slate-300">[HOP 2 - INTERMEDIATE RELAY]</span>
                 <p class="text-slate-300 mt-0.5">mail.relay-forwarder.org [51.15.89.24]</p>
               </div>
-              <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-sans">MTA Node</span>
+              <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-sans">Cloud MTA</span>
             </div>
 
             <div class="text-center text-slate-600 my-1"><i class="fa-solid fa-arrow-down"></i></div>
 
-            <!-- Hop 1: Final Recipient MTA -->
             <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between text-slate-400">
               <div>
-                <span class="font-bold text-slate-300">[HOP 3 - DESTINATION MX]</span>
+                <span class="font-bold text-slate-300">[HOP 3 - RECIPIENT MX]</span>
                 <p class="text-slate-300 mt-0.5">mx.google.com (Gmail MX Gateway)</p>
               </div>
               <span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-sans font-bold">Delivered</span>
@@ -202,9 +197,9 @@
     TEAM NEXORA • Smart India Hackathon 2026 • AI-Powered Email Threat Detection &amp; Origin De-Anonymization
   </footer>
 
-  <!-- 1-Click Activation Modal (Across Any Device) -->
+  <!-- 1-Click Activation Modal -->
   <div id="activationModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
           <i class="fa-solid fa-mobile-screen-button text-sky-400"></i> Activate on Any Device (Web / Android / iOS)
@@ -213,28 +208,34 @@
       </div>
 
       <div class="space-y-3 text-xs text-slate-300">
-        <p>No local software required. Deploy our automated cloud hook directly inside your Google account in 2 steps:</p>
+        <p class="text-slate-400">This connects your live inbox to the cloud forensic engine in 2 steps without installing local software:</p>
         
         <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-          <span class="font-bold text-sky-400">Step 1: Open Google Apps Script</span>
-          <p class="text-slate-400">Visit <a href="https://script.google.com" target="_blank" class="text-sky-400 underline">script.google.com</a> and paste the automated trigger script.</p>
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-sky-400">Step 1: Open Google Apps Script</span>
+            <a href="https://script.google.com" target="_blank" class="text-[11px] bg-sky-600/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30 hover:bg-sky-600/30">Open script.google.com &rarr;</a>
+          </div>
+          <p class="text-slate-400 text-[11px]">Create a new project and paste the automated background hook.</p>
         </div>
 
         <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-          <span class="font-bold text-sky-400">Step 2: Add Time-Driven Automation</span>
-          <p class="text-slate-400">Set trigger to run every 1 minute. Threats are automatically intercepted, geo-traced, and alerted to your SOC email.</p>
+          <span class="font-bold text-sky-400">Step 2: Add 1-Minute Timer Trigger</span>
+          <p class="text-slate-400 text-[11px]">Go to Triggers (&plus; Add Trigger) $\rightarrow$ select <code>autoScanRecentEmails</code> $\rightarrow$ Time-driven (Every minute). Threat alerts and SHA-256 seals will be delivered directly to your SOC email.</p>
         </div>
       </div>
 
-      <div class="pt-2 flex justify-end">
+      <div class="pt-2 flex justify-between items-center">
+        <span class="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-check"></i> Zero Local Dependencies
+        </span>
         <button onclick="closeActivationModal()" class="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition">
-          Done / Close
+          Got It / Close
         </button>
       </div>
     </div>
   </div>
 
-  <!-- JavaScript Logic -->
+  <!-- JavaScript Dynamic Logic -->
   <script>
     function openActivationModal() {
       document.getElementById('activationModal').classList.remove('hidden');
@@ -246,7 +247,6 @@
       document.getElementById('activationModal').classList.remove('flex');
     }
 
-    // Auto-run if URL has ?case=id
     window.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const caseId = urlParams.get('case');
@@ -262,35 +262,10 @@
 
       setTimeout(() => {
         document.getElementById('resultsSection').classList.remove('hidden');
-        btn.innerHTML = '<i class="fa-solid fa-play"></i> 1-Click Sample Threat Demo';
+        btn.innerHTML = '<i class="fa-solid fa-play"></i> 1-Click Live Threat Demo';
         btn.disabled = false;
-        
-        // Smooth scroll to analysis
         document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-      }, 700);
-    }
-
-    function handleManualUpload(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const rawContent = evt.target.result;
-        fetch('/scan_raw', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ raw_email: rawContent })
-        })
-        .then(res => res.json())
-        .then(data => {
-          runSampleThreatDemo();
-        })
-        .catch(err => {
-          runSampleThreatDemo(); // Fallback to live visual demo
-        });
-      };
-      reader.readAsText(file);
+      }, 600);
     }
   </script>
 </body>
