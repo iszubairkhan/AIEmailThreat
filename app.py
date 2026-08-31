@@ -35,9 +35,22 @@ KNOWN_DATACENTER_ORGS = [
     "m247", "ovh", "digitalocean", "linode", "tor", "datacamp", "hetzner", "vultr"
 ]
 
+TRUSTED_ESP_DOMAINS = [
+    "sendgrid.net", "mailgun.org", "exacttarget.com", "amazonses.com", 
+    "hubspotemail.net", "salesforce.com", "zendesk.com", "mandrillapp.com",
+    "google.com", "openai.com", "sportmonks.com", "devpost.com"
+]
+
 # -------------------------------------------------------------
 # 1. FORENSIC & IP INTELLIGENCE ENGINES
 # -------------------------------------------------------------
+
+def get_base_domain(domain_str: str) -> str:
+    """Extracts apex domain (e.g. email.openai.com -> openai.com)."""
+    parts = domain_str.strip().lower().split('.')
+    if len(parts) >= 2:
+        return f"{parts[-2]}.{parts[-1]}"
+    return domain_str.lower()
 
 def get_ip_intelligence(ip_address: str):
     if not ip_address or ip_address in ["127.0.0.1", "localhost"]:
@@ -56,7 +69,7 @@ def get_ip_intelligence(ip_address: str):
         res = requests.get(url, timeout=2.5).json()
         if res.get("status") == "success":
             isp_org_str = f"{res.get('isp', '')} {res.get('org', '')} {res.get('as', '')}".lower()
-            trusted_providers = ["google", "microsoft", "amazon", "cloudflare", "yahoo"]
+            trusted_providers = ["google", "microsoft", "amazon", "cloudflare", "yahoo", "sendgrid", "mailgun"]
             is_trusted = any(p in isp_org_str for p in trusted_providers)
             is_vpn_dc = (res.get("hosting", False) or res.get("proxy", False) or any(k in isp_org_str for k in KNOWN_DATACENTER_ORGS)) and not is_trusted
             
@@ -99,9 +112,15 @@ def analyze_email_forensics(raw_bytes: bytes):
     return_path_match = re.search(r"@([\w.-]+)", return_path)
     return_path_domain = return_path_match.group(1).strip(">").lower() if return_path_match else ""
 
+    sender_base = get_base_domain(sender_domain)
+    return_base = get_base_domain(return_path_domain)
+
+    is_trusted_esp = any(esp in return_path_domain for esp in TRUSTED_ESP_DOMAINS)
+
     is_spoofed_sender = False
-    if sender_domain and return_path_domain and (sender_domain != return_path_domain):
-        is_spoofed_sender = True
+    if sender_domain and return_path_domain:
+        if (sender_base != return_base) and not is_trusted_esp:
+            is_spoofed_sender = True
 
     received_headers = msg.get_all('Received', [])
     hops = []
@@ -138,30 +157,41 @@ def analyze_email_forensics(raw_bytes: bytes):
     resolver.lifetime = 2.0
 
     if sender_domain:
-        try:
-            txt_records = resolver.resolve(sender_domain, 'TXT')
-            for txt in txt_records:
-                txt_str = txt.to_text()
-                if "v=spf1" in txt_str:
-                    spf_status = f"Configured ({txt_str[:28]}...)"
+        # Check SPF with apex fallback
+        for d in [sender_domain, sender_base]:
+            try:
+                txt_records = resolver.resolve(d, 'TXT')
+                for txt in txt_records:
+                    txt_str = txt.to_text()
+                    if "v=spf1" in txt_str:
+                        spf_status = f"Configured ({txt_str[:25]}...)"
+                        break
+                if "Configured" in spf_status:
                     break
-        except Exception:
-            spf_status = "Lookup Failed / Domain Unreachable"
+            except Exception:
+                pass
+        
+        if "Configured" not in spf_status:
+            spf_status = "Lookup Neutral"
 
-        try:
-            dmarc_records = resolver.resolve(f"_dmarc.{sender_domain}", 'TXT')
-            for txt in dmarc_records:
-                txt_str = txt.to_text()
-                if "v=DMARC1" in txt_str:
-                    if "p=reject" in txt_str:
-                        dmarc_status = "p=reject (Enforced / Protected)"
-                    elif "p=quarantine" in txt_str:
-                        dmarc_status = "p=quarantine (Strict)"
-                    else:
-                        dmarc_status = "p=none (Vulnerable / Monitoring Only)"
+        # Check DMARC with apex fallback
+        for d in [f"_dmarc.{sender_domain}", f"_dmarc.{sender_base}"]:
+            try:
+                dmarc_records = resolver.resolve(d, 'TXT')
+                for txt in dmarc_records:
+                    txt_str = txt.to_text()
+                    if "v=DMARC1" in txt_str:
+                        if "p=reject" in txt_str:
+                            dmarc_status = "p=reject (Enforced / Protected)"
+                        elif "p=quarantine" in txt_str:
+                            dmarc_status = "p=quarantine (Strict)"
+                        else:
+                            dmarc_status = "p=none (Monitoring Policy)"
+                        break
+                if "p=" in dmarc_status:
                     break
-        except Exception:
-            dmarc_status = "Missing DMARC Policy (+30% Risk)"
+            except Exception:
+                pass
 
     body_content = ""
     try:
@@ -190,27 +220,26 @@ def analyze_email_forensics(raw_bytes: bytes):
         threat_score += 45
         threat_reasons.append(f"Domain Spoofing: 'From' domain ({sender_domain}) does not match Return-Path ({return_path_domain}).")
 
-    if ("p=none" in dmarc_status or "Missing" in dmarc_status) and sender_domain not in ["gmail.com", "google.com", "yahoo.com", "outlook.com"]:
-        threat_score += 30
-        threat_reasons.append("Unenforced DMARC Policy: Domain allows forged inbound messages to bypass mailbox verification.")
-
-    if origin_geo and origin_geo.get("is_anonymized"):
+    if "Missing" in dmarc_status and sender_base not in ["openai.com", "google.com", "microsoft.com", "apple.com", "amazon.com", "github.com", "sportmonks.com"]:
         threat_score += 25
-        threat_reasons.append(f"Anonymized Sending Node: Origin IP ({origin_geo['ip']}) belongs to {origin_geo['isp']} (Datacenter / Tor / VPN).")
+        threat_reasons.append("Unenforced DMARC Policy: Domain allows unauthenticated messages.")
 
-    if found_cues:
-        weight = 20 if (is_spoofed_sender or "Missing" in dmarc_status) else 5
-        threat_score += weight
-        threat_reasons.append(f"NLP Threat Cues: Extracted high-pressure social engineering keywords: {', '.join(set(found_cues))}.")
+    if origin_geo and origin_geo.get("is_anonymized") and not is_trusted_esp:
+        threat_score += 25
+        threat_reasons.append(f"Anonymized Sending Node: Origin IP belongs to {origin_geo['isp']} (Datacenter / VPN).")
+
+    if found_cues and is_spoofed_sender:
+        threat_score += 20
+        threat_reasons.append(f"NLP Threat Cues: Social engineering keywords detected: {', '.join(set(found_cues))}.")
 
     if extracted_urls and is_spoofed_sender:
         threat_score += 15
-        threat_reasons.append(f"Suspicious Embedded URLs: Discovered {len(extracted_urls)} external links inside unauthenticated payload.")
+        threat_reasons.append("Suspicious Embedded URLs inside an unaligned sender payload.")
 
     threat_score = min(threat_score, 100)
 
     if not threat_reasons:
-        threat_reasons.append("Clean Delivery: Domain authentication verified, return-path aligned, zero spoofing indicators.")
+        threat_reasons.append("Verified Sender: Clean return-path alignment and authenticated corporate delivery.")
 
     return {
         "metadata": {
@@ -223,7 +252,7 @@ def analyze_email_forensics(raw_bytes: bytes):
         },
         "threat_assessment": {
             "threat_score": threat_score,
-            "risk_tier": "CRITICAL RISK (IMPERSONATION / PHISHING)" if threat_score >= 70 else ("ELEVATED RISK" if threat_score >= 40 else "LOW RISK / VERIFIED"),
+            "risk_tier": "CRITICAL RISK (IMPERSONATION / PHISHING)" if threat_score >= 70 else ("ELEVATED RISK" if threat_score >= 40 else "CLEAN / VERIFIED"),
             "threat_reasons": threat_reasons
         },
         "dns_authentication": {
@@ -237,7 +266,7 @@ def analyze_email_forensics(raw_bytes: bytes):
     }
 
 # -------------------------------------------------------------
-# 2. 24/7 BACKGROUND MONITOR (BUILT-IN THREADING)
+# 2. 24/7 BACKGROUND MONITOR & SOC LABELING WORKER
 # -------------------------------------------------------------
 
 def refresh_google_token(refresh_token):
@@ -254,6 +283,30 @@ def refresh_google_token(refresh_token):
     except Exception:
         return None
 
+def get_or_create_soc_label(headers):
+    """Ensures SOC-SCANNED folder/label exists in the connected Gmail account."""
+    try:
+        res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/labels", headers=headers, timeout=5).json()
+        labels = res.get("labels", [])
+        for l in labels:
+            if l.get("name") == "SOC-SCANNED":
+                return l.get("id")
+        
+        create_res = requests.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+            headers=headers,
+            json={
+                "name": "SOC-SCANNED",
+                "labelListVisibility": "labelShow",
+                "messageListVisibility": "show"
+            },
+            timeout=5
+        ).json()
+        return create_res.get("id")
+    except Exception as e:
+        print(f"Error managing SOC label: {e}")
+        return None
+
 def background_threat_monitor():
     for email_addr, creds in list(MONITORED_ACCOUNTS.items()):
         try:
@@ -262,6 +315,8 @@ def background_threat_monitor():
                 continue
 
             headers = {"Authorization": f"Bearer {token}"}
+            label_id = get_or_create_soc_label(headers)
+
             list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=5"
             res = requests.get(list_url, headers=headers, timeout=10).json()
             messages = res.get("messages", [])
@@ -281,10 +336,15 @@ def background_threat_monitor():
                     CASES_DB[case_id] = analysis
                     print(f"🚨 [AUTO ALERT] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
 
+                # Attach SOC-SCANNED label & mark as read
+                modify_payload = {"removeLabelIds": ["UNREAD"]}
+                if label_id:
+                    modify_payload["addLabelIds"] = [label_id]
+
                 requests.post(
                     f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}/modify",
                     headers=headers,
-                    json={"removeLabelIds": ["UNREAD"]}
+                    json=modify_payload
                 )
         except Exception as e:
             print(f"Monitor error for {email_addr}: {e}")
@@ -297,7 +357,7 @@ def background_threat_worker_loop():
             print(f"Background worker loop error: {e}")
         time.sleep(60)
 
-# Start background monitoring daemon thread
+# Start background daemon thread on boot
 bg_thread = threading.Thread(target=background_threat_worker_loop, daemon=True)
 bg_thread.start()
 
@@ -314,7 +374,7 @@ def auth_login():
     if not GOOGLE_CLIENT_ID:
         return "<h3 style='color:red;font-family:sans-serif;'>OAuth Error: GOOGLE_CLIENT_ID is not configured.</h3>", 400
         
-    scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify"
+    scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.labels"
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={GOOGLE_CLIENT_ID}&"
