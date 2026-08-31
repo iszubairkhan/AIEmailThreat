@@ -9,7 +9,6 @@
   <style>
     @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-    /* Prevent horizontal viewport shifting on mobile browsers */
     html, body {
       overflow-x: hidden;
       width: 100%;
@@ -36,7 +35,7 @@
         </div>
       </div>
 
-      <!-- Action & Status Badges (Scrollable on small screens) -->
+      <!-- Action & Status Badges -->
       <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none flex-nowrap sm:flex-wrap">
         <button onclick="scrollToHelpDesk()" class="text-[11px] font-semibold text-slate-300 hover:text-white transition flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 whitespace-nowrap">
           <i class="fa-solid fa-circle-question text-sky-400"></i> FAQ
@@ -108,7 +107,6 @@
           <p class="text-[11px] text-slate-400 mt-0.5">Filter by threat level or select any email to audit.</p>
         </div>
 
-        <!-- Filter Buttons (Horizontal scrolling for mobile) -->
         <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px] font-bold w-full sm:w-auto overflow-x-auto">
           <button onclick="filterInbox('ALL')" id="filterBtnAll" class="flex-1 sm:flex-none px-2.5 py-1 rounded-lg bg-sky-600 text-white transition whitespace-nowrap">
             All
@@ -272,7 +270,7 @@
       <div class="space-y-3 text-xs text-slate-300">
         <div>
           <label class="block font-bold text-slate-200 mb-1">SOC / Admin Alert Email:</label>
-          <input type="email" id="customSocEmail" value="extraloginzub@gmail.com" placeholder="soc-alerts@yourcompany.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
+          <input type="email" id="customSocEmail" value="" placeholder="soc-alerts@yourcompany.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
         </div>
 
         <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
@@ -325,7 +323,6 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      // Set current year dynamically
       const yearEl = document.getElementById('currentYear');
       if (yearEl) yearEl.innerText = new Date().getFullYear();
 
@@ -537,7 +534,15 @@
     }
 
     function copyDynamicAppsScriptCode() {
-      const socEmail = document.getElementById('customSocEmail').value.trim() || "extraloginzub@gmail.com";
+      const inputVal = document.getElementById('customSocEmail').value.trim();
+      
+      if (!inputVal) {
+        alert("Please enter a SOC / Security Admin alert email first.");
+        document.getElementById('customSocEmail').focus();
+        return;
+      }
+
+      const socEmail = inputVal;
       const scriptCode = `const ALERT_RECIPIENT = "${socEmail}";
 const SCAN_API_ENDPOINT = "https://aiemailthreat.onrender.com/scan_raw";
 const THREAT_THRESHOLD = 60;
