@@ -38,14 +38,14 @@
       <!-- Action & Status Badges -->
       <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none flex-nowrap sm:flex-wrap">
         <button onclick="scrollToHelpDesk()" class="text-[11px] font-semibold text-slate-300 hover:text-white transition flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 whitespace-nowrap">
-          <i class="fa-solid fa-circle-question text-sky-400"></i> FAQ
+          <i class="fa-solid fa-circle-question text-sky-400"></i> FAQ &amp; Guide
         </button>
         <div class="flex items-center gap-1.5 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-slow"></span>
-          SOC READY
+          SOC ENGINE READY
         </div>
         <button onclick="openActivationModal()" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 transition text-white px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 shadow-lg shadow-sky-600/20 whitespace-nowrap">
-          <i class="fa-solid fa-bolt"></i> 24/7 Setup
+          <i class="fa-solid fa-bell"></i> Set SOC Alert Email
         </button>
       </div>
     </div>
@@ -75,7 +75,7 @@
           <i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo
         </button>
         <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-gear text-sky-400 text-xs"></i> Setup 24/7 Cloud Sentinel
+          <i class="fa-solid fa-gear text-sky-400 text-xs"></i> Configure SOC Alert Email
         </button>
       </div>
     </div>
@@ -86,7 +86,7 @@
       <!-- Session Bar -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-slate-950 p-3 rounded-xl border border-slate-800">
         <div class="flex items-center gap-2 text-xs text-slate-300 font-semibold">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span> Active Mailbox Connected
+          <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span> Active 24/7 Mailbox Connected
         </div>
         <div class="flex items-center gap-2 w-full sm:w-auto">
           <button onclick="cleanupSocLabels()" id="cleanLabelBtn" class="flex-1 sm:flex-none text-center bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-slate-700 transition">
@@ -214,9 +214,9 @@
       <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
         <div>
           <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-headset text-sky-400"></i> Help Desk &amp; Quick Guide
+            <i class="fa-solid fa-headset text-sky-400"></i> Sentinel Help Desk &amp; Quick Guide
           </h3>
-          <p class="text-[11px] text-slate-400 mt-0.5">Background monitoring and session controls.</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Automated background monitoring &amp; session management.</p>
         </div>
         <span class="text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-full font-bold">
           Docs
@@ -226,24 +226,23 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
           <h4 class="text-xs sm:text-sm font-bold text-emerald-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-circle-play"></i> 24/7 Monitoring Setup
+            <i class="fa-solid fa-shield-check"></i> Automated 24/7 Protection
           </h4>
           <ol class="text-[11px] text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
-            <li>Click <strong>24/7 Setup</strong> in the top bar.</li>
-            <li>Enter your <strong>Incident Alert Email</strong> and click <strong>Copy Script</strong>.</li>
-            <li>Open <a href="https://script.google.com" target="_blank" class="text-sky-400 underline">script.google.com</a> &rarr; <strong>New Project</strong>.</li>
-            <li>Paste the script and press <strong>Save (Ctrl+S)</strong>.</li>
-            <li>Add a <strong>1-minute Time-driven Trigger</strong> for <code>autoScanRecentEmails</code>.</li>
+            <li>Click <strong>1-Click Connect Any Mailbox</strong> above and grant read access.</li>
+            <li>Your mailbox is automatically enrolled in our server-side 24/7 daemon worker.</li>
+            <li>All incoming unread emails are scanned without local software or manual scripts.</li>
+            <li>High-risk threats generate Section 65B forensic hash logs and alert the SOC desk.</li>
           </ol>
         </div>
 
         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
           <h4 class="text-xs sm:text-sm font-bold text-rose-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-circle-stop"></i> Disconnecting Access
+            <i class="fa-solid fa-circle-stop"></i> Disconnecting &amp; Revoking Access
           </h4>
           <div class="space-y-1 text-[11px] text-slate-300 leading-relaxed">
-            <p><strong>Disconnect Web:</strong> Click <span class="text-rose-400 font-semibold">Disconnect</span> on the triage hub.</p>
-            <p><strong>Stop 24/7 Hook:</strong> Open <a href="https://script.google.com" target="_blank" class="text-sky-400 underline">script.google.com</a> &rarr; <strong>Triggers</strong> &rarr; <strong>Delete Trigger</strong>.</p>
+            <p><strong>Disconnect Web:</strong> Click <span class="text-rose-400 font-semibold">Disconnect</span> on the triage hub to clear your session.</p>
+            <p><strong>Clear Labels:</strong> Click <span class="text-amber-400 font-semibold">Clear Labels</span> to delete all SOC triage tags.</p>
             <p><strong>Revoke App:</strong> Visit <a href="https://myaccount.google.com/connections" target="_blank" class="text-sky-400 underline">Google Connections</a> &rarr; Remove AI Threat Sentinel.</p>
           </div>
         </div>
@@ -259,7 +258,7 @@
 
   <!-- Dynamic SOC Alert Configuration Modal -->
   <div id="activationModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 hidden items-center justify-center p-3 sm:p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-4 sm:p-6 space-y-3.5 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-4 sm:p-6 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
         <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
           <i class="fa-solid fa-bell text-sky-400"></i> Automated SOC Incident Dispatch
@@ -270,32 +269,25 @@
       <div class="space-y-3 text-xs text-slate-300">
         <div>
           <label class="block font-bold text-slate-200 mb-1">SOC / Admin Alert Email:</label>
-          <input type="email" id="customSocEmail" value="" placeholder="soc-alerts@yourcompany.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
+          <input type="email" id="customSocEmail" value="" placeholder="soc-alerts@yourcompany.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
+          <span class="text-[11px] text-slate-500">All suspicious threat incidents with Section 65B hash seals will be dispatched to this address.</span>
         </div>
 
-        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-sky-400 flex items-center gap-1.5">
-              <i class="fa-solid fa-code"></i> 24/7 Cloud Hook
-            </span>
-            <a href="https://script.google.com" target="_blank" class="text-[10px] bg-sky-600/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30 font-bold">
-              Open script.google.com &rarr;
-            </a>
-          </div>
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
+          <span class="font-bold text-emerald-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-check-circle"></i> Built-in Automated Background Daemon
+          </span>
           <p class="text-slate-400 text-[11px]">
-            Embedded with your custom SOC email to run 24/7 in Google Cloud without client software.
+            No manual scripts or client installations required. The platform scans background mailboxes automatically every 60 seconds.
           </p>
-          <button onclick="copyDynamicAppsScriptCode()" id="copyScriptBtn" class="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1.5">
-            <i class="fa-solid fa-copy"></i> Copy Script Code
-          </button>
         </div>
       </div>
 
       <div class="pt-2 flex justify-between items-center border-t border-slate-800">
-        <span class="text-[10px] text-emerald-400 font-semibold">
-          <i class="fa-solid fa-check"></i> Zero Local Installation
-        </span>
-        <button onclick="closeActivationModal()" class="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition">
+        <button onclick="saveSocEmail()" id="saveSocBtn" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition flex items-center gap-1.5">
+          <i class="fa-solid fa-floppy-disk"></i> Save Alert Email
+        </button>
+        <button onclick="closeActivationModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-3.5 py-2 rounded-lg transition">
           Close
         </button>
       </div>
@@ -311,6 +303,10 @@
     }
 
     function openActivationModal() {
+      const saved = localStorage.getItem('soc_alert_email');
+      if (saved) {
+        document.getElementById('customSocEmail').value = saved;
+      }
       const m = document.getElementById('activationModal');
       m.classList.remove('hidden');
       m.classList.add('flex');
@@ -320,6 +316,21 @@
       const m = document.getElementById('activationModal');
       m.classList.add('hidden');
       m.classList.remove('flex');
+    }
+
+    function saveSocEmail() {
+      const emailVal = document.getElementById('customSocEmail').value.trim();
+      if (!emailVal) {
+        alert("Please enter a valid email address.");
+        return;
+      }
+      localStorage.setItem('soc_alert_email', emailVal);
+      const btn = document.getElementById('saveSocBtn');
+      btn.innerHTML = '<i class="fa-solid fa-check text-emerald-300"></i> Saved!';
+      setTimeout(() => {
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Alert Email';
+        closeActivationModal();
+      }, 1000);
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -531,60 +542,6 @@
 
       document.getElementById('resultsSection').classList.remove('hidden');
       document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-    }
-
-    function copyDynamicAppsScriptCode() {
-      const inputVal = document.getElementById('customSocEmail').value.trim();
-      
-      if (!inputVal) {
-        alert("Please enter a SOC / Security Admin alert email first.");
-        document.getElementById('customSocEmail').focus();
-        return;
-      }
-
-      const socEmail = inputVal;
-      const scriptCode = `const ALERT_RECIPIENT = "${socEmail}";
-const SCAN_API_ENDPOINT = "https://aiemailthreat.onrender.com/scan_raw";
-const THREAT_THRESHOLD = 60;
-
-function autoScanRecentEmails() {
-  const query = "is:unread is:inbox -label:SOC-SCANNED -subject:\\"[SOC ALERT]\\" -subject:\\"[ALERT]\\"";
-  const threads = GmailApp.search(query, 0, 5);
-  let label = GmailApp.getUserLabelByName("SOC-SCANNED") || GmailApp.createLabel("SOC-SCANNED");
-
-  for (let i = 0; i < threads.length; i++) {
-    const messages = threads[i].getMessages();
-    const latestMessage = messages[messages.length - 1];
-    threads[i].addLabel(label);
-    threads[i].markRead();
-
-    if (latestMessage.getFrom().toLowerCase().includes("${socEmail.toLowerCase()}")) continue;
-
-    try {
-      const res = UrlFetchApp.fetch(SCAN_API_ENDPOINT, {
-        method: "post",
-        contentType: "application/json",
-        payload: JSON.stringify({ raw_email: latestMessage.getRawContent() }),
-        muteHttpExceptions: true
-      });
-      if (res.getResponseCode() === 200) {
-        const data = JSON.parse(res.getContentText());
-        const score = data.threat_assessment ? data.threat_assessment.threat_score : (data.threat_score || 0);
-        if (score >= THREAT_THRESHOLD) {
-          GmailApp.sendEmail(ALERT_RECIPIENT, "🚨 [SOC ALERT] Threat Detected (" + score + "%)", "View forensic dashboard: " + (data.report_url || "https://aiemailthreat.onrender.com/"));
-        }
-      }
-    } catch(err) { Logger.log(err); }
-  }
-}`;
-
-      navigator.clipboard.writeText(scriptCode).then(() => {
-        const btn = document.getElementById('copyScriptBtn');
-        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Copied!';
-        setTimeout(() => {
-          btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Script Code';
-        }, 2000);
-      });
     }
   </script>
 </body>
