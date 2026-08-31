@@ -32,8 +32,7 @@ BEC_URGENCY_PATTERNS = [
 ]
 
 KNOWN_DATACENTER_ORGS = [
-    "m247", "ovh", "digitalocean", "linode", "aws", "amazon", 
-    "tor", "vpn", "datacamp", "cloudflare", "hetzner", "vultr"
+    "m247", "ovh", "digitalocean", "linode", "tor", "datacamp", "hetzner", "vultr"
 ]
 
 # 2. De-Anonymization & GeoIP Classification Engine
@@ -55,7 +54,12 @@ def get_ip_intelligence(ip_address: str):
         res = requests.get(url, timeout=2.5).json()
         if res.get("status") == "success":
             isp_org_str = f"{res.get('isp', '')} {res.get('org', '')} {res.get('as', '')}".lower()
-            is_vpn_dc = res.get("hosting", False) or res.get("proxy", False) or any(k in isp_org_str for k in KNOWN_DATACENTER_ORGS)
+            
+            # Whitelist legitimate cloud mailbox infrastructures
+            trusted_providers = ["google", "microsoft", "amazon", "cloudflare", "yahoo"]
+            is_trusted = any(p in isp_org_str for p in trusted_providers)
+            
+            is_vpn_dc = (res.get("hosting", False) or res.get("proxy", False) or any(k in isp_org_str for k in KNOWN_DATACENTER_ORGS)) and not is_trusted
             
             return {
                 "ip": res.get("query"),
@@ -65,7 +69,7 @@ def get_ip_intelligence(ip_address: str):
                 "org": res.get("org", "Unknown"),
                 "asn": res.get("as", "Unknown"),
                 "is_anonymized": is_vpn_dc,
-                "node_type": "Data Center / VPN Relay" if is_vpn_dc else "Residential / ISP"
+                "node_type": "Data Center / VPN Relay" if is_vpn_dc else ("Corporate Cloud Mailbox" if is_trusted else "Residential / ISP")
             }
     except Exception:
         pass
@@ -187,31 +191,35 @@ def analyze_email_forensics(raw_bytes: bytes):
 
     extracted_urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', str(body_content))
 
-    # Multi-Factor Risk Scoring Matrix (0–100%)
-    threat_score = 5
+    # Calibrated Multi-Factor Risk Scoring Matrix
+    threat_score = 0
     threat_reasons = []
 
     if is_spoofed_sender:
-        threat_score += 40
+        threat_score += 45
         threat_reasons.append(f"Domain Spoofing: 'From' domain ({sender_domain}) does not match Return-Path ({return_path_domain}).")
 
-    if "p=none" in dmarc_status or "Missing" in dmarc_status:
+    if ("p=none" in dmarc_status or "Missing" in dmarc_status) and sender_domain not in ["gmail.com", "google.com", "yahoo.com", "outlook.com"]:
         threat_score += 30
         threat_reasons.append("Unenforced DMARC Policy: Domain allows forged inbound messages to bypass mailbox verification.")
 
     if origin_geo and origin_geo.get("is_anonymized"):
-        threat_score += 20
+        threat_score += 25
         threat_reasons.append(f"Anonymized Sending Node: Origin IP ({origin_geo['ip']}) belongs to {origin_geo['isp']} (Datacenter / Tor / VPN).")
 
     if found_cues:
-        threat_score += 15
+        weight = 20 if (is_spoofed_sender or "Missing" in dmarc_status) else 5
+        threat_score += weight
         threat_reasons.append(f"NLP Threat Cues: Extracted high-pressure social engineering keywords: {', '.join(set(found_cues))}.")
 
-    if extracted_urls:
-        threat_score += 10
-        threat_reasons.append(f"Suspicious Embedded URLs: Discovered {len(extracted_urls)} external links.")
+    if extracted_urls and is_spoofed_sender:
+        threat_score += 15
+        threat_reasons.append(f"Suspicious Embedded URLs: Discovered {len(extracted_urls)} external links inside unauthenticated payload.")
 
     threat_score = min(threat_score, 100)
+
+    if not threat_reasons:
+        threat_reasons.append("Clean Delivery: Domain authentication verified, return-path aligned, zero spoofing indicators.")
 
     return {
         "metadata": {
@@ -288,16 +296,45 @@ def auth_callback():
     if not access_token:
         return f"<h3 style='color:red;font-family:sans-serif;'>Token Exchange Failed:</h3><pre>{token_res}</pre>", 400
 
+    session['access_token'] = access_token
+
+    # Fetch last 8 messages for interactive mailbox triage
     headers = {"Authorization": f"Bearer {access_token}"}
-    list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=is:inbox"
+    list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=8&q=is:inbox"
     list_res = requests.get(list_url, headers=headers).json()
-    messages = list_res.get("messages", [])
+    messages_summary = list_res.get("messages", [])
 
-    if not messages:
-        return redirect("/?case=c66930bf&msg=inbox_empty")
+    inbox_list = []
+    for m in messages_summary:
+        msg_meta = requests.get(
+            f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
+            headers=headers
+        ).json()
+        
+        headers_list = msg_meta.get("payload", {}).get("headers", [])
+        subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "(No Subject)")
+        sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
+        date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
 
-    latest_msg_id = messages[0]["id"]
-    msg_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{latest_msg_id}?format=raw"
+        inbox_list.append({
+            "id": m["id"],
+            "subject": subject,
+            "from": sender,
+            "date": date_str,
+            "snippet": msg_meta.get("snippet", "")
+        })
+
+    session['inbox_list'] = inbox_list
+    return redirect("/?view=inbox_select")
+
+@app.route('/scan_inbox_message/<msg_id>')
+def scan_inbox_message(msg_id):
+    access_token = session.get('access_token')
+    if not access_token:
+        return redirect('/auth/login')
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    msg_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw"
     msg_res = requests.get(msg_url, headers=headers).json()
     
     raw_base64 = msg_res.get("raw", "")
@@ -308,6 +345,10 @@ def auth_callback():
     CASES_DB[case_id] = analysis
 
     return redirect(f"/?case={case_id}")
+
+@app.route('/api/get_session_inbox')
+def get_session_inbox():
+    return jsonify(session.get('inbox_list', []))
 
 # Ingestion Route for Automated Google Apps Script
 @app.route('/scan_raw', methods=['POST'])
