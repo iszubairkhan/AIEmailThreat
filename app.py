@@ -150,6 +150,7 @@ def analyze_email_forensics(raw_bytes: bytes):
     if discovered_ips:
         origin_geo = get_ip_intelligence(discovered_ips[-1])
 
+    # Resolving SPF & DMARC
     spf_status = "Not Configured / SoftFail"
     dmarc_status = "Missing DMARC Policy"
     resolver = dns.resolver.Resolver()
@@ -157,7 +158,6 @@ def analyze_email_forensics(raw_bytes: bytes):
     resolver.lifetime = 2.0
 
     if sender_domain:
-        # Check SPF with apex fallback
         for d in [sender_domain, sender_base]:
             try:
                 txt_records = resolver.resolve(d, 'TXT')
@@ -174,7 +174,6 @@ def analyze_email_forensics(raw_bytes: bytes):
         if "Configured" not in spf_status:
             spf_status = "Lookup Neutral"
 
-        # Check DMARC with apex fallback
         for d in [f"_dmarc.{sender_domain}", f"_dmarc.{sender_base}"]:
             try:
                 dmarc_records = resolver.resolve(d, 'TXT')
@@ -205,9 +204,11 @@ def analyze_email_forensics(raw_bytes: bytes):
     except Exception:
         body_content = str(msg.get_payload())
 
+    # Search for social engineering cues in subject + body
+    full_text_to_scan = f"{subject}\n{body_content}"
     found_cues = []
     for pattern in BEC_URGENCY_PATTERNS:
-        matches = re.findall(pattern, str(body_content), re.IGNORECASE)
+        matches = re.findall(pattern, full_text_to_scan, re.IGNORECASE)
         if matches:
             found_cues.extend(matches)
 
@@ -216,30 +217,36 @@ def analyze_email_forensics(raw_bytes: bytes):
     threat_score = 0
     threat_reasons = []
 
+    # 1. Critical Domain Spoofing
     if is_spoofed_sender:
         threat_score += 45
         threat_reasons.append(f"Domain Spoofing: 'From' domain ({sender_domain}) does not match Return-Path ({return_path_domain}).")
 
+    # 2. Missing DMARC on non-whitelisted apex domains
     if "Missing" in dmarc_status and sender_base not in ["openai.com", "google.com", "microsoft.com", "apple.com", "amazon.com", "github.com", "sportmonks.com"]:
         threat_score += 25
         threat_reasons.append("Unenforced DMARC Policy: Domain allows unauthenticated messages.")
 
+    # 3. Anonymized Sending Relay
     if origin_geo and origin_geo.get("is_anonymized") and not is_trusted_esp:
         threat_score += 25
         threat_reasons.append(f"Anonymized Sending Node: Origin IP belongs to {origin_geo['isp']} (Datacenter / VPN).")
 
-    if found_cues and is_spoofed_sender:
-        threat_score += 20
-        threat_reasons.append(f"NLP Threat Cues: Social engineering keywords detected: {', '.join(set(found_cues))}.")
+    # 4. High-Pressure Social Engineering / BEC Language
+    if found_cues:
+        nlp_penalty = 35 if len(found_cues) >= 2 else 20
+        threat_score += nlp_penalty
+        threat_reasons.append(f"Social Engineering Keywords: Detected urgency/financial cues ({', '.join(set(found_cues))}).")
 
-    if extracted_urls and is_spoofed_sender:
-        threat_score += 15
-        threat_reasons.append("Suspicious Embedded URLs inside an unaligned sender payload.")
+    # 5. Embedded Links with Phishing / Urgency cues
+    if extracted_urls and found_cues:
+        threat_score += 20
+        threat_reasons.append(f"Actionable Links in High-Risk Context: Discovered {len(extracted_urls)} URL(s) accompanied by urgency cues.")
 
     threat_score = min(threat_score, 100)
 
     if not threat_reasons:
-        threat_reasons.append("Verified Sender: Clean return-path alignment and authenticated corporate delivery.")
+        threat_reasons.append("Verified Sender: Clean return-path alignment and authenticated delivery.")
 
     return {
         "metadata": {
@@ -284,7 +291,6 @@ def refresh_google_token(refresh_token):
         return None
 
 def get_or_create_soc_label(headers):
-    """Ensures SOC-SCANNED folder/label exists in the connected Gmail account."""
     try:
         res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/labels", headers=headers, timeout=5).json()
         labels = res.get("labels", [])
@@ -331,12 +337,11 @@ def background_threat_monitor():
                 analysis = analyze_email_forensics(raw_bytes)
                 threat_score = analysis['threat_assessment']['threat_score']
 
-                if threat_score >= 60:
+                if threat_score >= 50:
                     case_id = str(uuid.uuid4())[:8]
                     CASES_DB[case_id] = analysis
                     print(f"🚨 [AUTO ALERT] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
 
-                # Attach SOC-SCANNED label & mark as read
                 modify_payload = {"removeLabelIds": ["UNREAD"]}
                 if label_id:
                     modify_payload["addLabelIds"] = [label_id]
@@ -357,7 +362,6 @@ def background_threat_worker_loop():
             print(f"Background worker loop error: {e}")
         time.sleep(60)
 
-# Start background daemon thread on boot
 bg_thread = threading.Thread(target=background_threat_worker_loop, daemon=True)
 bg_thread.start()
 
@@ -449,7 +453,8 @@ def auth_callback():
             date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
             snippet = msg_meta.get("snippet", "")
 
-            is_suspicious = any(k in subject.lower() or k in snippet.lower() for k in ["urgent", "password", "suspended", "payment", "unauthorized", "wire transfer"])
+            # Consistent threat preview alignment with forensic regex
+            is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
 
             inbox_list.append({
                 "id": m["id"],
