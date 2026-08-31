@@ -9,6 +9,7 @@ import ipaddress
 import requests
 import dns.resolver
 from flask import Flask, render_template, request, jsonify, redirect, session
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sih_nexora_sentinel_secret_2026")
@@ -19,6 +20,7 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "GOCSPX-C54rg-OMyW
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
 CASES_DB = {}
+MONITORED_ACCOUNTS = {}
 
 BEC_URGENCY_PATTERNS = [
     r"\b(urgent|immediate action|suspended within \d+ hours|account deactivated)\b",
@@ -31,6 +33,10 @@ BEC_URGENCY_PATTERNS = [
 KNOWN_DATACENTER_ORGS = [
     "m247", "ovh", "digitalocean", "linode", "tor", "datacamp", "hetzner", "vultr"
 ]
+
+# -------------------------------------------------------------
+# 1. FORENSIC & IP INTELLIGENCE ENGINES
+# -------------------------------------------------------------
 
 def get_ip_intelligence(ip_address: str):
     if not ip_address or ip_address in ["127.0.0.1", "localhost"]:
@@ -229,6 +235,65 @@ def analyze_email_forensics(raw_bytes: bytes):
         "social_engineering_cues": list(set(found_cues))
     }
 
+# -------------------------------------------------------------
+# 2. 24/7 BACKGROUND REFRESH & MONITOR WORKER
+# -------------------------------------------------------------
+
+def refresh_google_token(refresh_token):
+    token_url = "https://oauth2.googleapis.com/token"
+    token_data = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token"
+    }
+    res = requests.post(token_url, data=token_data, timeout=10).json()
+    return res.get("access_token")
+
+def background_threat_monitor():
+    for email_addr, creds in list(MONITORED_ACCOUNTS.items()):
+        try:
+            token = refresh_google_token(creds['refresh_token'])
+            if not token:
+                continue
+
+            headers = {"Authorization": f"Bearer {token}"}
+            list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=5"
+            res = requests.get(list_url, headers=headers, timeout=10).json()
+            messages = res.get("messages", [])
+
+            for m in messages:
+                raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=raw", headers=headers, timeout=10).json()
+                raw_base64 = raw_res.get("raw", "")
+                if not raw_base64:
+                    continue
+                raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
+                
+                analysis = analyze_email_forensics(raw_bytes)
+                threat_score = analysis['threat_assessment']['threat_score']
+
+                if threat_score >= 60:
+                    case_id = str(uuid.uuid4())[:8]
+                    CASES_DB[case_id] = analysis
+                    print(f"🚨 [AUTO ALERT] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
+
+                requests.post(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}/modify",
+                    headers=headers,
+                    json={"removeLabelIds": ["UNREAD"]}
+                )
+        except Exception as e:
+            print(f"Monitor error for {email_addr}: {e}")
+
+# Initialize Background Scheduler
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=background_threat_monitor, trigger="interval", seconds=60)
+scheduler.start()
+
+# -------------------------------------------------------------
+# 3. HTTP ROUTES & API ENDPOINTS
+# -------------------------------------------------------------
+
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -238,7 +303,7 @@ def auth_login():
     if not GOOGLE_CLIENT_ID:
         return "<h3 style='color:red;font-family:sans-serif;'>OAuth Error: GOOGLE_CLIENT_ID is not configured.</h3>", 400
         
-    scope = "https://www.googleapis.com/auth/gmail.readonly"
+    scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify"
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={GOOGLE_CLIENT_ID}&"
@@ -271,14 +336,28 @@ def auth_callback():
     
     token_res = requests.post(token_url, data=token_data, timeout=10).json()
     access_token = token_res.get("access_token")
+    refresh_token = token_res.get("refresh_token")
 
     if not access_token:
         return f"<h3 style='color:red;font-family:sans-serif;'>Token Exchange Failed:</h3><pre>{token_res}</pre>", 400
 
     session['access_token'] = access_token
-
-    # Fetch last 10 messages for comprehensive batch threat triage
     headers = {"Authorization": f"Bearer {access_token}"}
+
+    # Fetch User Profile for 24/7 background tracking registry
+    user_email = "connected_user"
+    try:
+        profile_res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/profile", headers=headers, timeout=5).json()
+        user_email = profile_res.get("emailAddress", "connected_user")
+    except Exception:
+        pass
+
+    if refresh_token:
+        MONITORED_ACCOUNTS[user_email] = {
+            "refresh_token": refresh_token
+        }
+
+    # Fetch last 10 messages for interactive dashboard
     list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
     list_res = requests.get(list_url, headers=headers, timeout=10).json()
     messages_summary = list_res.get("messages", [])
@@ -301,7 +380,6 @@ def auth_callback():
             date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
             snippet = msg_meta.get("snippet", "")
 
-            # Heuristic preview flag for instant inbox badges
             is_suspicious = any(k in subject.lower() or k in snippet.lower() for k in ["urgent", "password", "suspended", "payment", "unauthorized", "wire transfer"])
 
             inbox_list.append({
@@ -340,6 +418,33 @@ def scan_inbox_message(msg_id):
 @app.route('/api/get_session_inbox')
 def get_session_inbox():
     return jsonify(session.get('inbox_list', []))
+
+@app.route('/auth/logout')
+def auth_logout():
+    session.pop('access_token', None)
+    session.pop('inbox_list', None)
+    return redirect('/')
+
+@app.route('/api/cleanup_labels', methods=['POST'])
+def cleanup_labels():
+    access_token = session.get('access_token')
+    if not access_token:
+        return jsonify({"error": "No active session"}), 401
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        labels_res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/labels", headers=headers, timeout=5).json()
+        labels = labels_res.get("labels", [])
+        target_label = next((l for l in labels if l["name"] == "SOC-SCANNED"), None)
+
+        if target_label:
+            delete_url = f"https://gmail.googleapis.com/gmail/v1/users/me/labels/{target_label['id']}"
+            requests.delete(delete_url, headers=headers, timeout=5)
+            return jsonify({"status": "success", "message": "SOC-SCANNED label deleted."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+    return jsonify({"status": "success", "message": "No label found to remove."})
 
 @app.route('/scan_raw', methods=['POST'])
 def scan_raw():
@@ -390,35 +495,10 @@ def get_case(case_id):
         return scan_demo()
     return jsonify({"error": "Case not found"}), 404
 
+# -------------------------------------------------------------
+# 4. ENTRY POINT
+# -------------------------------------------------------------
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
-@app.route('/auth/logout')
-def auth_logout():
-    """Clears the active mailbox OAuth session."""
-    session.pop('access_token', None)
-    session.pop('inbox_list', None)
-    return redirect('/')
-
-@app.route('/api/cleanup_labels', methods=['POST'])
-def cleanup_labels():
-    """Removes the SOC-SCANNED label from the user's Gmail mailbox."""
-    access_token = session.get('access_token')
-    if not access_token:
-        return jsonify({"error": "No active session"}), 401
-
-    headers = {"Authorization": f"Bearer {access_token}"}
-    try:
-        labels_res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/labels", headers=headers, timeout=5).json()
-        labels = labels_res.get("labels", [])
-        target_label = next((l for l in labels if l["name"] == "SOC-SCANNED"), None)
-
-        if target_label:
-            delete_url = f"https://gmail.googleapis.com/gmail/v1/users/me/labels/{target_label['id']}"
-            requests.delete(delete_url, headers=headers, timeout=5)
-            return jsonify({"status": "success", "message": "SOC-SCANNED label deleted."})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-    return jsonify({"status": "success", "message": "No label found to remove."})
