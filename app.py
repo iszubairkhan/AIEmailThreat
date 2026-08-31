@@ -13,16 +13,13 @@ from flask import Flask, render_template, request, jsonify, redirect, session
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sih_nexora_sentinel_secret_2026")
 
-# OAuth Environment Configurations
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
-# In-memory case vault for persistent URL loading (?case=<case_id>)
 CASES_DB = {}
 
-# 1. Cognitive NLP & Urgency Heuristic Lexicons
 BEC_URGENCY_PATTERNS = [
     r"\b(urgent|immediate action|suspended within \d+ hours|account deactivated)\b",
     r"\b(wire transfer|bank payment|invoice overdue|direct deposit|gift cards?)\b",
@@ -35,9 +32,7 @@ KNOWN_DATACENTER_ORGS = [
     "m247", "ovh", "digitalocean", "linode", "tor", "datacamp", "hetzner", "vultr"
 ]
 
-# 2. De-Anonymization & GeoIP Classification Engine
 def get_ip_intelligence(ip_address: str):
-    """Resolves physical country, city, ISP, ASN, and flags VPN / Datacenter infrastructure."""
     if not ip_address or ip_address in ["127.0.0.1", "localhost"]:
         return {
             "ip": ip_address,
@@ -54,11 +49,8 @@ def get_ip_intelligence(ip_address: str):
         res = requests.get(url, timeout=2.5).json()
         if res.get("status") == "success":
             isp_org_str = f"{res.get('isp', '')} {res.get('org', '')} {res.get('as', '')}".lower()
-            
-            # Whitelist legitimate cloud mailbox infrastructures
             trusted_providers = ["google", "microsoft", "amazon", "cloudflare", "yahoo"]
             is_trusted = any(p in isp_org_str for p in trusted_providers)
-            
             is_vpn_dc = (res.get("hosting", False) or res.get("proxy", False) or any(k in isp_org_str for k in KNOWN_DATACENTER_ORGS)) and not is_trusted
             
             return {
@@ -84,11 +76,8 @@ def get_ip_intelligence(ip_address: str):
         "node_type": "Unresolved Relay"
     }
 
-# 3. Core Forensic & Threat Scoring Engine
 def analyze_email_forensics(raw_bytes: bytes):
-    # Section 65B IEA / Section 63 BSA 2023 Digital Evidence Freezing
     sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
-
     msg = email.message_from_bytes(raw_bytes, policy=policy.default)
 
     sender = str(msg.get('From', 'Unknown'))
@@ -97,7 +86,6 @@ def analyze_email_forensics(raw_bytes: bytes):
     date_header = str(msg.get('Date', 'Unknown'))
     message_id = str(msg.get('Message-ID', 'None'))
 
-    # Domain Alignment & Spoofing Detection
     domain_match = re.search(r"@([\w.-]+)", sender)
     sender_domain = domain_match.group(1).strip(">").lower() if domain_match else ""
 
@@ -108,7 +96,6 @@ def analyze_email_forensics(raw_bytes: bytes):
     if sender_domain and return_path_domain and (sender_domain != return_path_domain):
         is_spoofed_sender = True
 
-    # Reverse MTA Hop Traversal (Bottom-to-Top)
     received_headers = msg.get_all('Received', [])
     hops = []
     discovered_ips = []
@@ -137,7 +124,6 @@ def analyze_email_forensics(raw_bytes: bytes):
     if discovered_ips:
         origin_geo = get_ip_intelligence(discovered_ips[-1])
 
-    # Live DNS Authentication (SPF & DMARC)
     spf_status = "Not Configured / SoftFail"
     dmarc_status = "Missing DMARC Policy"
     resolver = dns.resolver.Resolver()
@@ -170,7 +156,6 @@ def analyze_email_forensics(raw_bytes: bytes):
         except Exception:
             dmarc_status = "Missing DMARC Policy (+30% Risk)"
 
-    # Cognitive NLP Threat Extraction
     body_content = ""
     try:
         if msg.is_multipart():
@@ -191,7 +176,6 @@ def analyze_email_forensics(raw_bytes: bytes):
 
     extracted_urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', str(body_content))
 
-    # Calibrated Multi-Factor Risk Scoring Matrix
     threat_score = 0
     threat_reasons = []
 
@@ -245,15 +229,10 @@ def analyze_email_forensics(raw_bytes: bytes):
         "social_engineering_cues": list(set(found_cues))
     }
 
-# ==========================================
-# APPLICATION ROUTES
-# ==========================================
-
 @app.route('/')
 def home():
     return render_template('index.html')
 
-# 1-Click Google OAuth Handshake
 @app.route('/auth/login')
 def auth_login():
     if not GOOGLE_CLIENT_ID:
@@ -298,9 +277,9 @@ def auth_callback():
 
     session['access_token'] = access_token
 
-    # Fetch last 6 messages for interactive selection
+    # Fetch last 10 messages for comprehensive batch threat triage
     headers = {"Authorization": f"Bearer {access_token}"}
-    list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=6&q=is:inbox"
+    list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
     list_res = requests.get(list_url, headers=headers, timeout=10).json()
     messages_summary = list_res.get("messages", [])
 
@@ -320,13 +299,18 @@ def auth_callback():
             subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "(No Subject)")
             sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
             date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
+            snippet = msg_meta.get("snippet", "")
+
+            # Heuristic preview flag for instant inbox badges
+            is_suspicious = any(k in subject.lower() or k in snippet.lower() for k in ["urgent", "password", "suspended", "payment", "unauthorized", "wire transfer"])
 
             inbox_list.append({
                 "id": m["id"],
                 "subject": subject,
                 "from": sender,
                 "date": date_str,
-                "snippet": msg_meta.get("snippet", "")
+                "snippet": snippet,
+                "threat_preview": "CRITICAL" if is_suspicious else "CLEAN"
             })
         except Exception:
             continue
@@ -357,7 +341,6 @@ def scan_inbox_message(msg_id):
 def get_session_inbox():
     return jsonify(session.get('inbox_list', []))
 
-# Ingestion Route for Automated Google Apps Script
 @app.route('/scan_raw', methods=['POST'])
 def scan_raw():
     data = request.get_json(silent=True)
@@ -374,7 +357,6 @@ def scan_raw():
     result['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
     return jsonify(result)
 
-# Synthetic Attack Simulation Route
 @app.route('/scan_demo', methods=['POST', 'GET'])
 def scan_demo():
     sample_payload = (
@@ -400,7 +382,6 @@ def scan_demo():
     analysis['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
     return jsonify(analysis)
 
-# Direct Case Loading Route (?case=<case_id>)
 @app.route('/api/get_case/<case_id>', methods=['GET'])
 def get_case(case_id):
     if case_id in CASES_DB:
