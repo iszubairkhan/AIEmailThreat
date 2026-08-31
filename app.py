@@ -16,7 +16,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sih_nexora_sentinel_secret_
 # OAuth Environment Configurations
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com")
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
 # In-memory case vault for persistent URL loading (?case=<case_id>)
