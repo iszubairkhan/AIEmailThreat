@@ -6,10 +6,11 @@ import hashlib
 import email
 from email import policy
 import ipaddress
+import threading
+import time
 import requests
 import dns.resolver
 from flask import Flask, render_template, request, jsonify, redirect, session
-from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sih_nexora_sentinel_secret_2026")
@@ -236,7 +237,7 @@ def analyze_email_forensics(raw_bytes: bytes):
     }
 
 # -------------------------------------------------------------
-# 2. 24/7 BACKGROUND REFRESH & MONITOR WORKER
+# 2. 24/7 BACKGROUND MONITOR (BUILT-IN THREADING)
 # -------------------------------------------------------------
 
 def refresh_google_token(refresh_token):
@@ -247,8 +248,11 @@ def refresh_google_token(refresh_token):
         "refresh_token": refresh_token,
         "grant_type": "refresh_token"
     }
-    res = requests.post(token_url, data=token_data, timeout=10).json()
-    return res.get("access_token")
+    try:
+        res = requests.post(token_url, data=token_data, timeout=10).json()
+        return res.get("access_token")
+    except Exception:
+        return None
 
 def background_threat_monitor():
     for email_addr, creds in list(MONITORED_ACCOUNTS.items()):
@@ -285,10 +289,17 @@ def background_threat_monitor():
         except Exception as e:
             print(f"Monitor error for {email_addr}: {e}")
 
-# Initialize Background Scheduler
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=background_threat_monitor, trigger="interval", seconds=60)
-scheduler.start()
+def background_threat_worker_loop():
+    while True:
+        try:
+            background_threat_monitor()
+        except Exception as e:
+            print(f"Background worker loop error: {e}")
+        time.sleep(60)
+
+# Start background monitoring daemon thread
+bg_thread = threading.Thread(target=background_threat_worker_loop, daemon=True)
+bg_thread.start()
 
 # -------------------------------------------------------------
 # 3. HTTP ROUTES & API ENDPOINTS
@@ -344,7 +355,6 @@ def auth_callback():
     session['access_token'] = access_token
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    # Fetch User Profile for 24/7 background tracking registry
     user_email = "connected_user"
     try:
         profile_res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/profile", headers=headers, timeout=5).json()
@@ -357,7 +367,6 @@ def auth_callback():
             "refresh_token": refresh_token
         }
 
-    # Fetch last 10 messages for interactive dashboard
     list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
     list_res = requests.get(list_url, headers=headers, timeout=10).json()
     messages_summary = list_res.get("messages", [])
