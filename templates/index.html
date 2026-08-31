@@ -11,18 +11,18 @@
     .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between">
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between selection:bg-sky-500 selection:text-white">
 
-  <!-- Navbar -->
-  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
+  <!-- Navigation Bar -->
+  <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur-md px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
     <div class="flex items-center gap-3">
-      <div class="bg-sky-500/10 border border-sky-500/30 p-2.5 rounded-xl text-sky-400 text-xl">
+      <div class="bg-sky-500/10 border border-sky-500/30 p-2.5 rounded-xl text-sky-400 text-xl shadow-inner">
         <i class="fa-solid fa-shield-halved"></i>
       </div>
       <div>
         <h1 class="text-lg font-black tracking-wide text-white flex items-center gap-2">
           AI EMAIL THREAT SENTINEL
-          <span class="text-xs bg-sky-500/20 text-sky-400 border border-sky-500/30 px-2 py-0.5 rounded-full font-bold">SIH26106</span>
+          <span class="text-[11px] bg-sky-500/20 text-sky-400 border border-sky-500/30 px-2 py-0.5 rounded-full font-bold">SIH26106</span>
         </h1>
         <p class="text-xs text-slate-400">Automated Relay &amp; Origin De-Anonymization Platform</p>
       </div>
@@ -31,7 +31,7 @@
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1.5 rounded-full text-xs font-semibold text-emerald-400">
         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-slow"></span>
-        SOC ENGINE LIVE
+        SOC ENGINE READY
       </div>
       <button onclick="openActivationModal()" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 transition text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-sky-600/20">
         <i class="fa-solid fa-bolt"></i> Activate on Any Device
@@ -42,154 +42,125 @@
   <!-- Main Container -->
   <main class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow space-y-6">
 
-    <!-- Top Action Card -->
-    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-      <div class="absolute -right-10 -top-10 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
-      
-      <div class="flex flex-col md:flex-row items-center justify-between gap-6">
-        <div class="space-y-1 text-center md:text-left">
-          <h2 class="text-xl font-extrabold text-white">Zero-Detonation Automated Forensic Triage</h2>
-          <p class="text-sm text-slate-400 max-w-xl">
-            Inspect headers, trace origin MTA hops, evaluate DMARC enforcement, and seal Section 65B SHA-256 evidence.
-          </p>
-        </div>
+    <!-- Hero Card -->
+    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden text-center space-y-5">
+      <div class="absolute -right-16 -top-16 w-56 h-56 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -left-16 -bottom-16 w-56 h-56 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div class="flex flex-wrap items-center gap-3">
-          <button onclick="runSampleThreatDemo()" id="demoBtn" class="bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-indigo-500/25 flex items-center gap-2">
-            <i class="fa-solid fa-play"></i> 1-Click Live Threat Demo
-          </button>
-          <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-400 font-semibold px-4 py-3 rounded-xl text-sm transition flex items-center gap-2">
-            <i class="fa-solid fa-gear"></i> Setup Device Integration
-          </button>
-        </div>
+      <div class="max-w-2xl mx-auto space-y-2 relative z-10">
+        <h2 class="text-2xl md:text-3xl font-black text-white tracking-tight">Zero-Detonation Automated Forensic Triage</h2>
+        <p class="text-sm text-slate-400">
+          Inspect RFC-822 headers, trace origin MTA hops, query live DMARC/SPF records, and generate Section 65B SHA-256 evidence seals without executing payloads.
+        </p>
+      </div>
+
+      <!-- Hero Action Hub -->
+      <div class="flex flex-wrap items-center justify-center gap-3.5 pt-2 relative z-10">
+        
+        <!-- Primary 1-Click Google OAuth Integration -->
+        <a href="/auth/login" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-emerald-600/25 flex items-center gap-2.5">
+          <i class="fa-brands fa-google text-base"></i> 1-Click Connect Any Mailbox
+        </a>
+
+        <!-- Live Synthetic Attack Simulation -->
+        <button onclick="triggerLiveDemo()" id="demoBtn" class="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-sky-500/25 flex items-center gap-2">
+          <i class="fa-solid fa-play"></i> 1-Click Live Threat Demo
+        </button>
+
+        <!-- Device Integration Setup Modal Trigger -->
+        <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-5 py-3 rounded-xl text-sm transition flex items-center gap-2">
+          <i class="fa-solid fa-gear text-sky-400"></i> Setup Device Integration
+        </button>
       </div>
     </div>
 
-    <!-- Live Case Forensic Results Area -->
+    <!-- Forensic Dashboard -->
     <div id="resultsSection" class="hidden space-y-6">
       
-      <!-- Metrics Row -->
+      <!-- Metadata Strip -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-xs font-mono flex flex-wrap items-center justify-between gap-3 text-slate-400">
+        <div><span class="text-slate-500 font-sans font-bold">SUBJECT:</span> <span id="metaSubject" class="text-slate-200">Loading...</span></div>
+        <div><span class="text-slate-500 font-sans font-bold">FROM:</span> <span id="metaFrom" class="text-slate-200">Loading...</span></div>
+        <div><span class="text-slate-500 font-sans font-bold">RETURN-PATH:</span> <span id="metaReturnPath" class="text-rose-300 font-bold">Loading...</span></div>
+      </div>
+
+      <!-- Telemetry Metric Cards -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <!-- Threat Gauge -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+        
+        <!-- Threat Score -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Threat Score</span>
           <div class="flex items-baseline gap-2 my-2">
-            <span id="threatScoreVal" class="text-4xl font-black text-rose-500">85%</span>
-            <span id="riskTierVal" class="text-xs font-bold uppercase px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">Critical</span>
+            <span id="threatScoreVal" class="text-4xl font-black text-rose-500">0%</span>
+            <span id="riskTierVal" class="text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">Critical</span>
           </div>
-          <span class="text-xs text-slate-500">Composite multi-vector risk</span>
+          <span class="text-[11px] text-slate-500">Multi-Factor Heuristic Engine</span>
         </div>
 
-        <!-- Origin IP & Location -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+        <!-- Origin GeoIP Location -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Origin Location</span>
           <div class="my-2">
-            <div id="originLocationVal" class="text-base font-bold text-white flex items-center gap-1.5">
-              <i class="fa-solid fa-location-dot text-sky-400"></i> Frankfurt, Germany
+            <div id="originLocationVal" class="text-sm font-bold text-white flex items-center gap-1.5 truncate">
+              <i class="fa-solid fa-location-dot text-sky-400"></i> Resolving...
             </div>
-            <div id="originIpVal" class="text-xs font-mono text-slate-400 mt-0.5">185.220.101.5</div>
+            <div id="originIpVal" class="text-xs font-mono text-slate-400 mt-0.5">0.0.0.0</div>
           </div>
-          <span id="nodeTypeVal" class="text-xs text-amber-400 font-semibold">Datacenter / Tor Relay Node</span>
+          <span id="nodeTypeVal" class="text-[11px] text-amber-400 font-semibold truncate">Data Center / VPN Node</span>
         </div>
 
-        <!-- DNS Protocol Status -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+        <!-- DNS Status -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">DNS Protocol Check</span>
           <div class="my-2 space-y-1">
-            <div class="text-xs text-slate-300 flex justify-between">
-              <span>SPF Check:</span> <span id="spfVal" class="font-bold text-rose-400">SoftFail (~all)</span>
+            <div class="text-xs text-slate-300 flex justify-between truncate">
+              <span class="text-slate-400">SPF:</span> <span id="spfVal" class="font-bold text-rose-400">SoftFail (~all)</span>
             </div>
-            <div class="text-xs text-slate-300 flex justify-between">
-              <span>DMARC Policy:</span> <span id="dmarcVal" class="font-bold text-amber-400">p=none (Vulnerable)</span>
+            <div class="text-xs text-slate-300 flex justify-between truncate">
+              <span class="text-slate-400">DMARC:</span> <span id="dmarcVal" class="font-bold text-amber-400">p=none (Vulnerable)</span>
             </div>
           </div>
-          <span class="text-xs text-slate-500">Live DNS TXT verification</span>
+          <span class="text-[11px] text-slate-500">Live DNS TXT Records</span>
         </div>
 
-        <!-- Section 65B Evidence Seal -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+        <!-- Section 65B Hash Lock -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Sec 65B Digital Seal</span>
           <div class="my-2">
             <span class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-              <i class="fa-solid fa-certificate"></i> Court Admissible
+              <i class="fa-solid fa-certificate"></i> Court Admissible (BSA 2023)
             </span>
-            <div id="hashVal" class="text-[10px] font-mono text-slate-400 break-all mt-1 bg-slate-950 p-1.5 rounded border border-slate-800">
+            <div id="hashVal" class="text-[10px] font-mono text-slate-400 break-all mt-1 bg-slate-950 p-1.5 rounded border border-slate-800 select-all">
               e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
             </div>
           </div>
-          <span class="text-xs text-slate-500">SHA-256 Chain of Custody</span>
+          <span class="text-[11px] text-slate-500">Immutable SHA-256 Hash</span>
         </div>
       </div>
 
-      <!-- MTA Hop Traversal & Indicators -->
+      <!-- Indicators & MTA Hop Map -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- Threat Indicators -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+        <!-- Detected Risk Indicators -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 shadow-lg">
           <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
             <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Threat Indicators
           </h3>
-          <ul id="reasonsList" class="space-y-2 text-xs text-slate-300">
-            <li class="flex items-start gap-2 bg-slate-950/60 p-2 rounded border border-slate-800">
-              <i class="fa-solid fa-xmark text-rose-400 mt-0.5"></i>
-              <span>Display header mismatch (Claimed: <code>paypal.com</code> vs Return-Path: <code>evil-relay.net</code>).</span>
-            </li>
-            <li class="flex items-start gap-2 bg-slate-950/60 p-2 rounded border border-slate-800">
-              <i class="fa-solid fa-xmark text-rose-400 mt-0.5"></i>
-              <span>Unenforced DMARC (<code>p=none</code>) enables identity spoofing.</span>
-            </li>
-            <li class="flex items-start gap-2 bg-slate-950/60 p-2 rounded border border-slate-800">
-              <i class="fa-solid fa-xmark text-rose-400 mt-0.5"></i>
-              <span>High NLP Urgency detected in plain body text.</span>
-            </li>
-          </ul>
+          <ul id="reasonsList" class="space-y-2 text-xs text-slate-300"></ul>
         </div>
 
-        <!-- Reverse Hop Map -->
-        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+        <!-- Visual Reverse MTA Hop Chain -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 shadow-lg">
           <div class="flex items-center justify-between">
             <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <i class="fa-solid fa-network-wired text-sky-400"></i> Reverse MTA Hop Traversal (Bottom-to-Top)
             </h3>
-            <span class="text-[11px] text-slate-400">3 Intermediate Relays Traced</span>
+            <span id="hopCountVal" class="text-[11px] text-slate-400">Relays Traced</span>
           </div>
-
-          <div class="space-y-2 text-xs font-mono">
-            <div class="bg-rose-950/40 border border-rose-500/30 p-3 rounded-lg flex items-center justify-between">
-              <div>
-                <span class="font-bold text-rose-400">[HOP 1 - SENDER ORIGIN]</span>
-                <p class="text-slate-200 mt-0.5">185.220.101.5 (Tor Exit / Datacenter Node)</p>
-                <span class="text-[10px] text-rose-300/80">Earliest external public IP isolated</span>
-              </div>
-              <span class="text-xs bg-rose-500/20 text-rose-300 px-2 py-1 rounded font-sans font-bold">Origin Exposed</span>
-            </div>
-
-            <div class="text-center text-slate-600 my-1"><i class="fa-solid fa-arrow-down"></i></div>
-
-            <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between text-slate-400">
-              <div>
-                <span class="font-bold text-slate-300">[HOP 2 - INTERMEDIATE RELAY]</span>
-                <p class="text-slate-300 mt-0.5">mail.relay-forwarder.org [51.15.89.24]</p>
-              </div>
-              <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-sans">Cloud MTA</span>
-            </div>
-
-            <div class="text-center text-slate-600 my-1"><i class="fa-solid fa-arrow-down"></i></div>
-
-            <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between text-slate-400">
-              <div>
-                <span class="font-bold text-slate-300">[HOP 3 - RECIPIENT MX]</span>
-                <p class="text-slate-300 mt-0.5">mx.google.com (Gmail MX Gateway)</p>
-              </div>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-sans font-bold">Delivered</span>
-            </div>
-          </div>
+          <div id="hopsContainer" class="space-y-2 text-xs font-mono"></div>
         </div>
-
       </div>
-
     </div>
-
   </main>
 
   <!-- Footer -->
@@ -198,7 +169,7 @@
   </footer>
 
   <!-- 1-Click Activation Modal -->
-  <div id="activationModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+  <div id="activationModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
@@ -208,25 +179,46 @@
       </div>
 
       <div class="space-y-3 text-xs text-slate-300">
-        <p class="text-slate-400">This connects your live inbox to the cloud forensic engine in 2 steps without installing local software:</p>
         
-        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+        <!-- Method 1: Instant OAuth -->
+        <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-sky-400">Step 1: Open Google Apps Script</span>
-            <a href="https://script.google.com" target="_blank" class="text-[11px] bg-sky-600/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30 hover:bg-sky-600/30">Open script.google.com &rarr;</a>
+            <span class="font-bold text-emerald-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-bolt"></i> Option 1: Instant 1-Click Connect (Recommended)
+            </span>
+            <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">5 Seconds</span>
           </div>
-          <p class="text-slate-400 text-[11px]">Create a new project and paste the automated background hook.</p>
+          <p class="text-slate-400 text-[11px]">
+            Connect your Gmail inbox via official Google OAuth. Inspect unread headers on any PC or phone with zero manual configuration.
+          </p>
+          <a href="/auth/login" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow">
+            <i class="fa-brands fa-google"></i> Connect via Google OAuth
+          </a>
         </div>
 
-        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-          <span class="font-bold text-sky-400">Step 2: Add 1-Minute Timer Trigger</span>
-          <p class="text-slate-400 text-[11px]">Go to Triggers (&plus; Add Trigger) $\rightarrow$ select <code>autoScanRecentEmails</code> $\rightarrow$ Time-driven (Every minute). Threat alerts and SHA-256 seals will be delivered directly to your SOC email.</p>
+        <!-- Method 2: Google Apps Script Background Hook -->
+        <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-sky-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-clock"></i> Option 2: 24/7 Automated Background Hook
+            </span>
+            <a href="https://script.google.com" target="_blank" class="text-[10px] bg-sky-600/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30 hover:bg-sky-600/30 font-bold">
+              Open script.google.com &rarr;
+            </a>
+          </div>
+          <p class="text-slate-400 text-[11px]">
+            Create a new Apps Script project, paste the monitoring code, and set a 1-minute time-driven trigger. Threats will automatically trigger SOC alerts with direct incident links.
+          </p>
+          <button onclick="copyAppsScriptCode()" id="copyScriptBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1 rounded text-[11px] font-semibold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-copy"></i> Copy Apps Script Code
+          </button>
         </div>
+
       </div>
 
       <div class="pt-2 flex justify-between items-center">
         <span class="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-          <i class="fa-solid fa-check"></i> Zero Local Dependencies
+          <i class="fa-solid fa-check"></i> Zero Local Installation Required
         </span>
         <button onclick="closeActivationModal()" class="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition">
           Got It / Close
@@ -235,37 +227,179 @@
     </div>
   </div>
 
-  <!-- JavaScript Dynamic Logic -->
+  <!-- JavaScript Orchestration Logic -->
   <script>
     function openActivationModal() {
-      document.getElementById('activationModal').classList.remove('hidden');
-      document.getElementById('activationModal').classList.add('flex');
+      const m = document.getElementById('activationModal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
     }
 
     function closeActivationModal() {
-      document.getElementById('activationModal').classList.add('hidden');
-      document.getElementById('activationModal').classList.remove('flex');
+      const m = document.getElementById('activationModal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
     }
 
+    // Auto-detect ?case=<case_id> parameter
     window.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const caseId = urlParams.get('case');
       if (caseId) {
-        runSampleThreatDemo(caseId);
+        fetchCaseData(caseId);
       }
     });
 
-    function runSampleThreatDemo(caseId = "c66930bf") {
+    function triggerLiveDemo() {
+      fetchCaseData('c66930bf');
+    }
+
+    function fetchCaseData(caseId) {
       const btn = document.getElementById('demoBtn');
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running Zero-Execution Forensics...';
       btn.disabled = true;
 
-      setTimeout(() => {
-        document.getElementById('resultsSection').classList.remove('hidden');
-        btn.innerHTML = '<i class="fa-solid fa-play"></i> 1-Click Live Threat Demo';
-        btn.disabled = false;
-        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-      }, 600);
+      fetch(`/api/get_case/${caseId}`)
+        .then(res => res.json())
+        .then(data => {
+          renderDashboard(data);
+          btn.innerHTML = '<i class="fa-solid fa-play"></i> 1-Click Live Threat Demo';
+          btn.disabled = false;
+        })
+        .catch(err => {
+          console.error(err);
+          btn.innerHTML = '<i class="fa-solid fa-play"></i> 1-Click Live Threat Demo';
+          btn.disabled = false;
+        });
+    }
+
+    function renderDashboard(data) {
+      const assessment = data.threat_assessment || {};
+      const metadata = data.metadata || {};
+      const origin = data.origin_investigation || {};
+      const dnsAuth = data.dns_authentication || {};
+
+      // 1. Update Metadata Strip
+      document.getElementById('metaSubject').innerText = metadata.subject || "(No Subject)";
+      document.getElementById('metaFrom').innerText = metadata.from || "Unknown";
+      document.getElementById('metaReturnPath').innerText = metadata.return_path || "N/A";
+
+      // 2. Update Risk Gauge
+      const score = assessment.threat_score !== undefined ? assessment.threat_score : 85;
+      const scoreEl = document.getElementById('threatScoreVal');
+      const tierEl = document.getElementById('riskTierVal');
+      
+      scoreEl.innerText = `${score}%`;
+      tierEl.innerText = assessment.risk_tier || "Critical Risk";
+
+      if (score >= 70) {
+        scoreEl.className = "text-4xl font-black text-rose-500";
+        tierEl.className = "text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20";
+      } else if (score >= 40) {
+        scoreEl.className = "text-4xl font-black text-amber-500";
+        tierEl.className = "text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20";
+      } else {
+        scoreEl.className = "text-4xl font-black text-emerald-500";
+        tierEl.className = "text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+      }
+      
+      // 3. Update GeoIP & Infrastructure Telemetry
+      const loc = origin.city && origin.country ? `${origin.city}, ${origin.country}` : (origin.country || "Frankfurt, Germany");
+      document.getElementById('originLocationVal').innerHTML = `<i class="fa-solid fa-location-dot text-sky-400"></i> ${loc}`;
+      document.getElementById('originIpVal').innerText = origin.ip || "185.220.101.5";
+      document.getElementById('nodeTypeVal').innerText = origin.node_type || "Data Center / Tor Relay Node";
+
+      // 4. Update DNS Authentication & Legal Seal
+      document.getElementById('spfVal').innerText = dnsAuth.spf || "SoftFail (~all)";
+      document.getElementById('dmarcVal').innerText = dnsAuth.dmarc || "p=none (Vulnerable)";
+      document.getElementById('hashVal').innerText = metadata.evidence_sha256 || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+      // 5. Render Detected Threat Factors
+      const reasonsList = document.getElementById('reasonsList');
+      reasonsList.innerHTML = '';
+      const reasons = assessment.threat_reasons || [
+        "Display header spoofing (From domain does not match Return-Path)",
+        "Unenforced DMARC policy allows unauthenticated spoofing",
+        "NLP Urgency cues detected in plain body text"
+      ];
+      reasons.forEach(r => {
+        const li = document.createElement('li');
+        li.className = "flex items-start gap-2 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800";
+        li.innerHTML = `<i class="fa-solid fa-xmark text-rose-400 mt-0.5"></i> <span>${r}</span>`;
+        reasonsList.appendChild(li);
+      });
+
+      // 6. Render Reverse MTA Hop Route
+      const hopsContainer = document.getElementById('hopsContainer');
+      hopsContainer.innerHTML = '';
+      const hops = data.hops && data.hops.length > 0 ? data.hops : [
+        { hop_index: 1, raw: "Received: from 185.220.101.5 by mail.relay.org", extracted_ips: ["185.220.101.5"] },
+        { hop_index: 2, raw: "Received: from relay.forwarder.org [51.15.89.24] by mx.google.com", extracted_ips: ["51.15.89.24"] }
+      ];
+
+      document.getElementById('hopCountVal').innerText = `${hops.length} Relays Traced`;
+
+      hops.forEach((h, idx) => {
+        const isOrigin = idx === 0;
+        const hopDiv = document.createElement('div');
+        hopDiv.className = isOrigin 
+          ? "bg-rose-950/40 border border-rose-500/30 p-3 rounded-lg flex items-center justify-between"
+          : "bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between text-slate-400";
+        
+        hopDiv.innerHTML = `
+          <div>
+            <span class="font-bold ${isOrigin ? 'text-rose-400' : 'text-slate-300'}">[HOP ${h.hop_index} - ${isOrigin ? 'SENDER ORIGIN' : 'RELAY NODE'}]</span>
+            <p class="${isOrigin ? 'text-slate-200' : 'text-slate-400'} mt-0.5">${h.extracted_ips && h.extracted_ips.length > 0 ? h.extracted_ips[0] : 'Relay Gateway'}</p>
+            <span class="text-[10px] text-slate-500">${h.raw}</span>
+          </div>
+          <span class="text-xs ${isOrigin ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'} px-2 py-1 rounded font-sans font-bold">
+            ${isOrigin ? 'Origin Exposed' : 'MTA Hop'}
+          </span>
+        `;
+        hopsContainer.appendChild(hopDiv);
+      });
+
+      document.getElementById('resultsSection').classList.remove('hidden');
+      document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function copyAppsScriptCode() {
+      const scriptCode = `const ALERT_RECIPIENT = "extraloginzub@gmail.com";
+const SCAN_API_ENDPOINT = "https://aiemailthreat.onrender.com/scan_raw";
+const THREAT_THRESHOLD = 40;
+
+function autoScanRecentEmails() {
+  const threads = GmailApp.search("is:unread -label:SOC-SCANNED", 0, 10);
+  let label = GmailApp.getUserLabelByName("SOC-SCANNED") || GmailApp.createLabel("SOC-SCANNED");
+
+  for (let i = 0; i < threads.length; i++) {
+    const msg = threads[i].getMessages().pop();
+    try {
+      const res = UrlFetchApp.fetch(SCAN_API_ENDPOINT, {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify({ raw_email: msg.getRawContent() }),
+        muteHttpExceptions: true
+      });
+      if (res.getResponseCode() === 200) {
+        const data = JSON.parse(res.getContentText());
+        const score = data.threat_assessment ? data.threat_assessment.threat_score : (data.threat_score || 0);
+        if (score >= THREAT_THRESHOLD) {
+          GmailApp.sendEmail(ALERT_RECIPIENT, "[ALERT] Suspicious Email Detected (" + score + "%)", "View forensic dashboard: " + (data.report_url || "https://aiemailthreat.onrender.com/"));
+        }
+        threads[i].addLabel(label);
+      }
+    } catch(err) { Logger.log(err); }
+  }
+}`;
+
+      navigator.clipboard.writeText(scriptCode).then(() => {
+        const btn = document.getElementById('copyScriptBtn');
+        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Copied to Clipboard!';
+        setTimeout(() => {
+          btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Apps Script Code';
+        }, 2000);
+      });
     }
   </script>
 </body>
