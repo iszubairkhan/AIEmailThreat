@@ -290,7 +290,7 @@ def auth_callback():
         "grant_type": "authorization_code"
     }
     
-    token_res = requests.post(token_url, data=token_data).json()
+    token_res = requests.post(token_url, data=token_data, timeout=10).json()
     access_token = token_res.get("access_token")
 
     if not access_token:
@@ -298,31 +298,38 @@ def auth_callback():
 
     session['access_token'] = access_token
 
-    # Fetch last 8 messages for interactive mailbox triage
+    # Fetch last 6 messages for interactive selection
     headers = {"Authorization": f"Bearer {access_token}"}
-    list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=8&q=is:inbox"
-    list_res = requests.get(list_url, headers=headers).json()
+    list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=6&q=is:inbox"
+    list_res = requests.get(list_url, headers=headers, timeout=10).json()
     messages_summary = list_res.get("messages", [])
+
+    if not messages_summary:
+        return redirect("/?case=c66930bf&msg=inbox_empty")
 
     inbox_list = []
     for m in messages_summary:
-        msg_meta = requests.get(
-            f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
-            headers=headers
-        ).json()
-        
-        headers_list = msg_meta.get("payload", {}).get("headers", [])
-        subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "(No Subject)")
-        sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
-        date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
+        try:
+            msg_meta = requests.get(
+                f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
+                headers=headers,
+                timeout=3
+            ).json()
+            
+            headers_list = msg_meta.get("payload", {}).get("headers", [])
+            subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "(No Subject)")
+            sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
+            date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
 
-        inbox_list.append({
-            "id": m["id"],
-            "subject": subject,
-            "from": sender,
-            "date": date_str,
-            "snippet": msg_meta.get("snippet", "")
-        })
+            inbox_list.append({
+                "id": m["id"],
+                "subject": subject,
+                "from": sender,
+                "date": date_str,
+                "snippet": msg_meta.get("snippet", "")
+            })
+        except Exception:
+            continue
 
     session['inbox_list'] = inbox_list
     return redirect("/?view=inbox_select")
@@ -335,7 +342,7 @@ def scan_inbox_message(msg_id):
 
     headers = {"Authorization": f"Bearer {access_token}"}
     msg_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw"
-    msg_res = requests.get(msg_url, headers=headers).json()
+    msg_res = requests.get(msg_url, headers=headers, timeout=10).json()
     
     raw_base64 = msg_res.get("raw", "")
     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
