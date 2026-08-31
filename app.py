@@ -1,34 +1,55 @@
 import os
 import re
-import datetime
+import uuid
+import base64
 import hashlib
 import email
 from email import policy
-import uuid
+import ipaddress
 import requests
 import dns.resolver
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, session
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sih_nexora_sentinel_secret_2026")
 
-# Persistent In-Memory Case Cache for Direct URL Routing (?case=<case_id>)
+# OAuth Environment Configurations
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
+
+# In-memory case vault for persistent URL loading (?case=<case_id>)
 CASES_DB = {}
 
-# Heuristic lists for detection
+# 1. Cognitive NLP & Urgency Heuristic Lexicons
 BEC_URGENCY_PATTERNS = [
     r"\b(urgent|immediate action|suspended within \d+ hours|account deactivated)\b",
     r"\b(wire transfer|bank payment|invoice overdue|direct deposit|gift cards?)\b",
     r"\b(verify password|update credentials|reset password|click here immediately)\b",
-    r"\b(unauthorized login|compromised account|termination of access)\b"
+    r"\b(unauthorized login|compromised account|termination of access)\b",
+    r"\b(ceo request|confidential payment|vendor bank details updated)\b"
 ]
 
 KNOWN_DATACENTER_ORGS = [
     "m247", "ovh", "digitalocean", "linode", "aws", "amazon", 
-    "tor", "vpn", "datacamp", "cloudflare", "hetzner"
+    "tor", "vpn", "datacamp", "cloudflare", "hetzner", "vultr"
 ]
 
+# 2. De-Anonymization & GeoIP Classification Engine
 def get_ip_intelligence(ip_address: str):
-    """Resolves Geolocation, ASN, and flags VPN / Datacenter infrastructure."""
+    """Resolves physical country, city, ISP, ASN, and flags VPN / Datacenter infrastructure."""
+    if not ip_address or ip_address in ["127.0.0.1", "localhost"]:
+        return {
+            "ip": ip_address,
+            "country": "Local Relay",
+            "city": "Internal",
+            "isp": "Private Loopback",
+            "org": "Internal",
+            "asn": "AS0",
+            "is_anonymized": False,
+            "node_type": "Internal / RFC-1918"
+        }
     try:
         url = f"http://ip-api.com/json/{ip_address}?fields=status,country,city,isp,org,as,hosting,proxy,query"
         res = requests.get(url, timeout=2.5).json()
@@ -48,22 +69,31 @@ def get_ip_intelligence(ip_address: str):
             }
     except Exception:
         pass
-    return None
+    return {
+        "ip": ip_address,
+        "country": "Unknown",
+        "city": "Unknown",
+        "isp": "Unknown",
+        "org": "Unknown",
+        "asn": "Unknown",
+        "is_anonymized": False,
+        "node_type": "Unresolved Relay"
+    }
 
+# 3. Core Forensic & Threat Scoring Engine
 def analyze_email_forensics(raw_bytes: bytes):
+    # Section 65B IEA / Section 63 BSA 2023 Digital Evidence Freezing
+    sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
+
     msg = email.message_from_bytes(raw_bytes, policy=policy.default)
 
-    # 1. Extract Core Metadata
     sender = str(msg.get('From', 'Unknown'))
     return_path = str(msg.get('Return-Path', 'Unknown'))
     subject = str(msg.get('Subject', '(No Subject)'))
     date_header = str(msg.get('Date', 'Unknown'))
     message_id = str(msg.get('Message-ID', 'None'))
 
-    # Evidence Hash (Section 65B compliance)
-    sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
-
-    # 2. Extract Domain & Match Spoofing
+    # Domain Alignment & Spoofing Detection
     domain_match = re.search(r"@([\w.-]+)", sender)
     sender_domain = domain_match.group(1).strip(">").lower() if domain_match else ""
 
@@ -74,32 +104,38 @@ def analyze_email_forensics(raw_bytes: bytes):
     if sender_domain and return_path_domain and (sender_domain != return_path_domain):
         is_spoofed_sender = True
 
-    # 3. Header Route & Relay Hop Forensics
+    # Reverse MTA Hop Traversal (Bottom-to-Top)
     received_headers = msg.get_all('Received', [])
     hops = []
     discovered_ips = []
 
     for idx, hop_str in enumerate(received_headers):
         ips = re.findall(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", str(hop_str))
-        public_ips = [ip for ip in ips if not ip.startswith(("127.", "10.", "192.168.", "0.", "172.16."))]
+        public_ips = []
+        for ip in ips:
+            try:
+                ip_obj = ipaddress.ip_address(ip)
+                if not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local):
+                    public_ips.append(ip)
+            except ValueError:
+                continue
+                
         discovered_ips.extend(public_ips)
-
         geo = get_ip_intelligence(public_ips[0]) if public_ips else None
         hops.append({
             "hop_index": idx + 1,
-            "raw": str(hop_str).strip()[:100] + "...",
+            "raw": str(hop_str).strip()[:110] + "...",
             "extracted_ips": public_ips,
             "geo": geo
         })
 
-    # Earliest originating IP analysis
     origin_geo = None
     if discovered_ips:
         origin_geo = get_ip_intelligence(discovered_ips[-1])
 
-    # 4. Live DNS Security Authentication (SPF, DMARC)
-    spf_status = "Not Found"
-    dmarc_status = "Not Found"
+    # Live DNS Authentication (SPF & DMARC)
+    spf_status = "Not Configured / SoftFail"
+    dmarc_status = "Missing DMARC Policy"
     resolver = dns.resolver.Resolver()
     resolver.timeout = 2.0
     resolver.lifetime = 2.0
@@ -110,22 +146,27 @@ def analyze_email_forensics(raw_bytes: bytes):
             for txt in txt_records:
                 txt_str = txt.to_text()
                 if "v=spf1" in txt_str:
-                    spf_status = f"Configured ({txt_str[:30]}...)"
+                    spf_status = f"Configured ({txt_str[:28]}...)"
                     break
         except Exception:
-            spf_status = "Failed / Domain Unreachable"
+            spf_status = "Lookup Failed / Domain Unreachable"
 
         try:
             dmarc_records = resolver.resolve(f"_dmarc.{sender_domain}", 'TXT')
             for txt in dmarc_records:
                 txt_str = txt.to_text()
                 if "v=DMARC1" in txt_str:
-                    dmarc_status = f"Configured ({txt_str[:30]}...)"
+                    if "p=reject" in txt_str:
+                        dmarc_status = "p=reject (Enforced / Protected)"
+                    elif "p=quarantine" in txt_str:
+                        dmarc_status = "p=quarantine (Strict)"
+                    else:
+                        dmarc_status = "p=none (Vulnerable / Monitoring Only)"
                     break
         except Exception:
-            dmarc_status = "Missing DMARC Policy"
+            dmarc_status = "Missing DMARC Policy (+30% Risk)"
 
-    # 5. NLP Social Engineering & Urgency Detector
+    # Cognitive NLP Threat Extraction
     body_content = ""
     try:
         if msg.is_multipart():
@@ -146,25 +187,29 @@ def analyze_email_forensics(raw_bytes: bytes):
 
     extracted_urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', str(body_content))
 
-    # 6. Multi-Factor Confidence Fraud Scoring Algorithm
+    # Multi-Factor Risk Scoring Matrix (0–100%)
     threat_score = 5
     threat_reasons = []
 
     if is_spoofed_sender:
         threat_score += 40
-        threat_reasons.append(f"Domain Spoofing: 'From' domain ({sender_domain}) differs from Return-Path ({return_path_domain}).")
+        threat_reasons.append(f"Domain Spoofing: 'From' domain ({sender_domain}) does not match Return-Path ({return_path_domain}).")
+
+    if "p=none" in dmarc_status or "Missing" in dmarc_status:
+        threat_score += 30
+        threat_reasons.append("Unenforced DMARC Policy: Domain allows forged inbound messages to bypass mailbox verification.")
 
     if origin_geo and origin_geo.get("is_anonymized"):
-        threat_score += 25
-        threat_reasons.append(f"Anonymization Layer: Origin IP ({origin_geo['ip']}) belongs to Data Center / VPN infrastructure.")
+        threat_score += 20
+        threat_reasons.append(f"Anonymized Sending Node: Origin IP ({origin_geo['ip']}) belongs to {origin_geo['isp']} (Datacenter / Tor / VPN).")
 
     if found_cues:
-        threat_score += 20
-        threat_reasons.append(f"NLP Threat Cues: Detected coercive urgency patterns ({len(found_cues)} indicators).")
+        threat_score += 15
+        threat_reasons.append(f"NLP Threat Cues: Extracted high-pressure social engineering keywords: {', '.join(set(found_cues))}.")
 
     if extracted_urls:
         threat_score += 10
-        threat_reasons.append(f"Suspicious Embedded URLs: {len(extracted_urls)} link(s) discovered in payload.")
+        threat_reasons.append(f"Suspicious Embedded URLs: Discovered {len(extracted_urls)} external links.")
 
     threat_score = min(threat_score, 100)
 
@@ -179,52 +224,88 @@ def analyze_email_forensics(raw_bytes: bytes):
         },
         "threat_assessment": {
             "threat_score": threat_score,
-            "risk_tier": "CRITICAL RISK (IMPERSONATION / PHISHING)" if threat_score > 60 else "LOW RISK / VERIFIED",
+            "risk_tier": "CRITICAL RISK (IMPERSONATION / PHISHING)" if threat_score >= 70 else ("ELEVATED RISK" if threat_score >= 40 else "LOW RISK / VERIFIED"),
             "threat_reasons": threat_reasons
         },
         "dns_authentication": {
             "spf": spf_status,
             "dmarc": dmarc_status
         },
-        "origin_investigation": origin_geo,
+        "origin_investigation": origin_geo or {"ip": "127.0.0.1", "country": "Unknown", "city": "Unknown", "isp": "Unknown", "node_type": "Unknown"},
         "hops": hops,
         "urls": extracted_urls,
         "social_engineering_cues": list(set(found_cues))
     }
 
 # ==========================================
-# FLASK ROUTING ENDPOINTS
+# APPLICATION ROUTES
 # ==========================================
 
 @app.route('/')
 def home():
     return render_template('index.html')
 
-@app.route('/scan', methods=['POST'])
-def scan_file():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-    f = request.files['file']
-    return jsonify(analyze_email_forensics(f.read()))
+# 1-Click Google OAuth Handshake
+@app.route('/auth/login')
+def auth_login():
+    if not GOOGLE_CLIENT_ID:
+        return redirect("/?case=c66930bf&note=demo_mode_active")
+        
+    scope = "https://www.googleapis.com/auth/gmail.readonly"
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={GOOGLE_CLIENT_ID}&"
+        f"redirect_uri={REDIRECT_URI}&"
+        f"response_type=code&"
+        f"scope={scope}&"
+        f"access_type=offline&"
+        f"prompt=consent"
+    )
+    return redirect(auth_url)
 
-@app.route('/scan_demo', methods=['POST', 'GET'])
-def scan_demo():
-    sample_path = os.path.join(os.path.dirname(__file__), "sample_attack.eml")
-    if os.path.exists(sample_path):
-        with open(sample_path, "rb") as f:
-            raw_bytes = f.read()
-    else:
-        # High-threat synthetic sample fallback
-        raw_bytes = (
-            b"Received: from 185.220.101.5 by mail.relay.org; Sun, 30 Aug 2026 12:00:00 +0000\r\n"
-            b"From: Security Support <support@paypal.com>\r\n"
-            b"Return-Path: <attacker@evil-relay.net>\r\n"
-            b"Subject: URGENT: Account Suspension Notice\r\n"
-            b"\r\n"
-            b"Immediate action required! Your account will be suspended within 24 hours. Please verify password here: http://phish-login.com"
-        )
-    return jsonify(analyze_email_forensics(raw_bytes))
+@app.route('/auth/callback')
+def auth_callback():
+    code = request.args.get('code')
+    if not code:
+        return redirect("/?error=auth_failed")
 
+    token_url = "https://oauth2.googleapis.com/token"
+    token_data = {
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": REDIRECT_URI,
+        "grant_type": "authorization_code"
+    }
+    
+    token_res = requests.post(token_url, data=token_data).json()
+    access_token = token_res.get("access_token")
+
+    if not access_token:
+        return redirect("/?case=c66930bf")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=is:inbox"
+    list_res = requests.get(list_url, headers=headers).json()
+    messages = list_res.get("messages", [])
+
+    if not messages:
+        return redirect("/?case=c66930bf&msg=inbox_empty")
+
+    latest_msg_id = messages[0]["id"]
+    msg_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{latest_msg_id}?format=raw"
+    msg_res = requests.get(msg_url, headers=headers).json()
+    
+    raw_base64 = msg_res.get("raw", "")
+    raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
+
+    analysis = analyze_email_forensics(raw_bytes)
+    case_id = str(uuid.uuid4())[:8]
+    CASES_DB[case_id] = analysis
+
+    return redirect(f"/?case={case_id}")
+
+# Ingestion Route for Automated Google Apps Script
 @app.route('/scan_raw', methods=['POST'])
 def scan_raw():
     data = request.get_json(silent=True)
@@ -234,25 +315,47 @@ def scan_raw():
     raw_content = data['raw_email'].encode('utf-8')
     result = analyze_email_forensics(raw_content)
     
-    # Generate persistent unique 8-character Case ID
     case_id = str(uuid.uuid4())[:8]
     CASES_DB[case_id] = result
     
-    # Attach tracking URL to response
     result['case_id'] = case_id
     result['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
-    
     return jsonify(result)
 
+# Synthetic Attack Simulation Route
+@app.route('/scan_demo', methods=['POST', 'GET'])
+def scan_demo():
+    sample_payload = (
+        b"Received: from 185.220.101.5 (mail.tor-exit.de [185.220.101.5])\r\n"
+        b"\tby relay.forwarder-cloud.org with ESMTP id 8472910;\r\n"
+        b"\tSun, 30 Aug 2026 14:22:10 +0000\r\n"
+        b"Received: from relay.forwarder-cloud.org (relay.forwarder-cloud.org [51.15.89.24])\r\n"
+        b"\tby mx.google.com with ESMTPS id j89si123490;\r\n"
+        b"\tSun, 30 Aug 2026 14:22:12 +0000\r\n"
+        b"From: Executive Payroll Support <billing@paypal.com>\r\n"
+        b"Return-Path: <attacker@cloud-vps-phish.net>\r\n"
+        b"Subject: URGENT: Wire Transfer Authorization & Credential Verification\r\n"
+        b"Date: Sun, 30 Aug 2026 14:22:00 +0000\r\n"
+        b"Message-ID: <threat-demo-sih26106-sentinel@nexus>\r\n"
+        b"\r\n"
+        b"Immediate action required. Your executive corporate account will be suspended within 24 hours.\r\n"
+        b"Please process the overdue wire transfer to the updated account and verify password here: http://secure-auth-update.com"
+    )
+    analysis = analyze_email_forensics(sample_payload)
+    case_id = "c66930bf"
+    CASES_DB[case_id] = analysis
+    analysis['case_id'] = case_id
+    analysis['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
+    return jsonify(analysis)
+
+# Direct Case Loading Route (?case=<case_id>)
 @app.route('/api/get_case/<case_id>', methods=['GET'])
 def get_case(case_id):
     if case_id in CASES_DB:
         return jsonify(CASES_DB[case_id])
+    if case_id == "c66930bf":
+        return scan_demo()
     return jsonify({"error": "Case not found"}), 404
-
-# ==========================================
-# SERVER ENTRYPOINT
-# ==========================================
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
