@@ -29,12 +29,15 @@
     </div>
 
     <div class="flex items-center gap-3">
+      <button onclick="scrollToHelpDesk()" class="text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900">
+        <i class="fa-solid fa-circle-question text-sky-400"></i> Help Desk &amp; FAQ
+      </button>
       <div class="flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1.5 rounded-full text-xs font-semibold text-emerald-400">
         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-slow"></span>
         SOC ENGINE READY
       </div>
       <button onclick="openActivationModal()" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 transition text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-sky-600/20">
-        <i class="fa-solid fa-bolt"></i> Configure SOC Alerts
+        <i class="fa-solid fa-bolt"></i> 24/7 Monitoring Setup
       </button>
     </div>
   </header>
@@ -62,14 +65,29 @@
           <i class="fa-solid fa-play"></i> 1-Click Live Threat Demo
         </button>
         <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-5 py-3 rounded-xl text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-gear text-sky-400"></i> Configure Incident Email
+          <i class="fa-solid fa-gear text-sky-400"></i> Setup 24/7 Cloud Sentinel
         </button>
       </div>
     </div>
 
-    <!-- Interactive Inbox Message Selector with Filters -->
+    <!-- Interactive Inbox Message Selector with Filters & Disconnect Bar -->
     <div id="inboxSelectionSection" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
       
+      <!-- Mailbox Action Controls -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+        <div class="flex items-center gap-2 text-xs text-slate-300 font-semibold">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Active Mailbox Session Connected
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="cleanupSocLabels()" id="cleanLabelBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-broom text-amber-400"></i> Clear SOC Labels
+          </button>
+          <a href="/auth/logout" class="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-rose-500/30 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-right-from-bracket"></i> Disconnect Mailbox
+          </a>
+        </div>
+      </div>
+
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <h3 class="text-base font-bold text-white flex items-center gap-2">
@@ -176,6 +194,52 @@
         </div>
       </div>
     </div>
+
+    <!-- SOC Help Desk & Troubleshooting Section -->
+    <section id="helpDeskSection" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 md:p-8 space-y-6">
+      <div class="border-b border-slate-800 pb-4 flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-headset text-sky-400"></i> SOC Sentinel Help Desk &amp; Quick Guide
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">Simple guides for 24/7 background protection, session management, and deactivation.</p>
+        </div>
+        <span class="text-xs bg-sky-500/10 text-sky-400 border border-sky-500/20 px-3 py-1 rounded-full font-bold">
+          Documentation
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Guide 1: Enable 24/7 Monitoring -->
+        <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-3">
+          <h4 class="text-sm font-bold text-emerald-400 flex items-center gap-2">
+            <i class="fa-solid fa-circle-play"></i> How to Enable 24/7 Background Monitoring
+          </h4>
+          <ol class="text-xs text-slate-300 space-y-2 list-decimal list-inside">
+            <li>Click <strong>24/7 Monitoring Setup</strong> at the top of this page.</li>
+            <li>Enter your preferred <strong>Incident Alert Email</strong> and click <strong>Copy Script Code</strong>.</li>
+            <li>Open <a href="https://script.google.com" target="_blank" class="text-sky-400 underline">script.google.com</a> and click <strong>New Project</strong>.</li>
+            <li>Paste the copied script and press <strong>Save (Ctrl+S)</strong>.</li>
+            <li>Click <strong>Triggers (Clock icon)</strong> &rarr; <strong>+ Add Trigger</strong> &rarr; select <code>autoScanRecentEmails</code> &rarr; <strong>Minutes timer (Every 1 minute)</strong>.</li>
+          </ol>
+        </div>
+
+        <!-- Guide 2: Disconnect & Remove Access -->
+        <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-3">
+          <h4 class="text-sm font-bold text-rose-400 flex items-center gap-2">
+            <i class="fa-solid fa-circle-stop"></i> How to Disconnect or Disable Monitoring
+          </h4>
+          <div class="space-y-2 text-xs text-slate-300">
+            <p><strong>To Disconnect Web Session:</strong> Click the <span class="text-rose-400 font-bold">Disconnect Mailbox</span> button on the triage hub to immediately terminate OAuth tokens.</p>
+            <p><strong>To Stop 24/7 Apps Script:</strong> Go to <a href="https://script.google.com" target="_blank" class="text-sky-400 underline">script.google.com</a> &rarr; click <strong>Triggers</strong> &rarr; click the three dots on the trigger &rarr; select <strong>Delete trigger</strong>.</p>
+            <p><strong>To Revoke Third-Party Permission:</strong> Visit <a href="https://myaccount.google.com/connections" target="_blank" class="text-sky-400 underline">myaccount.google.com/connections</a> &rarr; find AI Threat Sentinel &rarr; click <strong>Delete all connections</strong>.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
   </main>
 
   <footer class="border-t border-slate-800 bg-slate-900/60 py-4 text-center text-xs text-slate-500">
@@ -232,6 +296,10 @@
   <script>
     let globalInboxData = [];
 
+    function scrollToHelpDesk() {
+      document.getElementById('helpDeskSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
     function openActivationModal() {
       const m = document.getElementById('activationModal');
       m.classList.remove('hidden');
@@ -269,6 +337,26 @@
         .catch(err => {
           console.error(err);
           document.getElementById('inboxItemsList').innerHTML = '<p class="text-rose-400 text-xs py-4 text-center">Failed to load mailbox messages.</p>';
+        });
+    }
+
+    function cleanupSocLabels() {
+      const btn = document.getElementById('cleanLabelBtn');
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i> Cleaning...';
+      btn.disabled = true;
+
+      fetch('/api/cleanup_labels', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Cleaned!';
+          setTimeout(() => {
+            btn.innerHTML = '<i class="fa-solid fa-broom text-amber-400"></i> Clear SOC Labels';
+            btn.disabled = false;
+          }, 2000);
+        })
+        .catch(() => {
+          btn.innerHTML = '<i class="fa-solid fa-broom text-amber-400"></i> Clear SOC Labels';
+          btn.disabled = false;
         });
     }
 
