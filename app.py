@@ -393,3 +393,32 @@ def get_case(case_id):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
+@app.route('/auth/logout')
+def auth_logout():
+    """Clears the active mailbox OAuth session."""
+    session.pop('access_token', None)
+    session.pop('inbox_list', None)
+    return redirect('/')
+
+@app.route('/api/cleanup_labels', methods=['POST'])
+def cleanup_labels():
+    """Removes the SOC-SCANNED label from the user's Gmail mailbox."""
+    access_token = session.get('access_token')
+    if not access_token:
+        return jsonify({"error": "No active session"}), 401
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        labels_res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/labels", headers=headers, timeout=5).json()
+        labels = labels_res.get("labels", [])
+        target_label = next((l for l in labels if l["name"] == "SOC-SCANNED"), None)
+
+        if target_label:
+            delete_url = f"https://gmail.googleapis.com/gmail/v1/users/me/labels/{target_label['id']}"
+            requests.delete(delete_url, headers=headers, timeout=5)
+            return jsonify({"status": "success", "message": "SOC-SCANNED label deleted."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+    return jsonify({"status": "success", "message": "No label found to remove."})
