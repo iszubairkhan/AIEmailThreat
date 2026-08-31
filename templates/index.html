@@ -13,7 +13,7 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between selection:bg-sky-500 selection:text-white">
 
-  <!-- Navigation Bar -->
+  <!-- Header -->
   <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur-md px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
     <div class="flex items-center gap-3">
       <div class="bg-sky-500/10 border border-sky-500/30 p-2.5 rounded-xl text-sky-400 text-xl shadow-inner">
@@ -34,12 +34,12 @@
         SOC ENGINE READY
       </div>
       <button onclick="openActivationModal()" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 transition text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-sky-600/20">
-        <i class="fa-solid fa-bolt"></i> Activate on Any Device
+        <i class="fa-solid fa-bolt"></i> Configure SOC Alerts
       </button>
     </div>
   </header>
 
-  <!-- Main Container -->
+  <!-- Main Area -->
   <main class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow space-y-6">
 
     <!-- Hero Card -->
@@ -54,7 +54,6 @@
         </p>
       </div>
 
-      <!-- Hero Action Hub -->
       <div class="flex flex-wrap items-center justify-center gap-3.5 pt-2 relative z-10">
         <a href="/auth/login" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-emerald-600/25 flex items-center gap-2.5">
           <i class="fa-brands fa-google text-base"></i> 1-Click Connect Any Mailbox
@@ -63,28 +62,38 @@
           <i class="fa-solid fa-play"></i> 1-Click Live Threat Demo
         </button>
         <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-5 py-3 rounded-xl text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-gear text-sky-400"></i> Setup Device Integration
+          <i class="fa-solid fa-gear text-sky-400"></i> Configure Incident Email
         </button>
       </div>
     </div>
 
-    <!-- Live Mailbox Inbox Selector -->
+    <!-- Interactive Inbox Message Selector with Filters -->
     <div id="inboxSelectionSection" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-        <div class="flex items-center gap-2.5">
-          <i class="fa-solid fa-inbox text-emerald-400 text-lg"></i>
-          <h3 class="text-base font-bold text-white">Live Connected Mailbox — Select Email to Audit</h3>
+      
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-inbox text-emerald-400"></i> Connected Mailbox Triage Hub
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">Filter by threat level or select any email to generate an instant Section 65B forensic report.</p>
         </div>
-        <span class="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full font-semibold">
-          Authorized Stream
-        </span>
-      </div>
-      <div id="inboxItemsList" class="space-y-2">
-        <div class="text-center py-6 text-slate-400 text-xs">
-          <i class="fa-solid fa-spinner fa-spin text-sky-400 text-base mb-2"></i><br>
-          Fetching recent messages from your mailbox...
+
+        <!-- Filter Tabs -->
+        <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+          <button onclick="filterInbox('ALL')" id="filterBtnAll" class="px-3 py-1.5 rounded-lg bg-sky-600 text-white transition">
+            All Messages
+          </button>
+          <button onclick="filterInbox('THREAT')" id="filterBtnThreat" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-rose-400 transition flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span> Threat Cues Only
+          </button>
+          <button onclick="filterInbox('CLEAN')" id="filterBtnClean" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-emerald-400 transition flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Verified Clean
+          </button>
         </div>
       </div>
+
+      <!-- Item List -->
+      <div id="inboxItemsList" class="space-y-2"></div>
     </div>
 
     <!-- Forensic Dashboard -->
@@ -100,7 +109,6 @@
       <!-- Telemetry Metric Cards -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         
-        <!-- Threat Score -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Threat Score</span>
           <div class="flex items-baseline gap-2 my-2">
@@ -110,7 +118,6 @@
           <span class="text-[11px] text-slate-500">Multi-Factor Heuristic Engine</span>
         </div>
 
-        <!-- Origin GeoIP Location -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Origin Location</span>
           <div class="my-2">
@@ -122,7 +129,6 @@
           <span id="nodeTypeVal" class="text-[11px] text-amber-400 font-semibold truncate">Data Center / VPN Node</span>
         </div>
 
-        <!-- DNS Status -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">DNS Protocol Check</span>
           <div class="my-2 space-y-1">
@@ -136,7 +142,6 @@
           <span class="text-[11px] text-slate-500">Live DNS TXT Records</span>
         </div>
 
-        <!-- Section 65B Hash Lock -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Sec 65B Digital Seal</span>
           <div class="my-2">
@@ -173,68 +178,60 @@
     </div>
   </main>
 
-  <!-- Footer -->
   <footer class="border-t border-slate-800 bg-slate-900/60 py-4 text-center text-xs text-slate-500">
     TEAM NEXORA • Smart India Hackathon 2026 • AI-Powered Email Threat Detection &amp; Origin De-Anonymization
   </footer>
 
-  <!-- 1-Click Activation Modal -->
+  <!-- Dynamic SOC Alert Configuration Modal -->
   <div id="activationModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-mobile-screen-button text-sky-400"></i> Activate on Any Device (Web / Android / iOS)
+          <i class="fa-solid fa-bell text-sky-400"></i> Automated SOC Incident Dispatch
         </h3>
         <button onclick="closeActivationModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
       </div>
 
       <div class="space-y-3 text-xs text-slate-300">
-        <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-400 flex items-center gap-1.5">
-              <i class="fa-solid fa-bolt"></i> Option 1: Instant 1-Click Connect (Recommended)
-            </span>
-            <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">5 Seconds</span>
-          </div>
-          <p class="text-slate-400 text-[11px]">
-            Connect your Gmail inbox via official Google OAuth. Inspect unread headers on any PC or phone with zero manual configuration.
-          </p>
-          <a href="/auth/login" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow">
-            <i class="fa-brands fa-google"></i> Connect via Google OAuth
-          </a>
+        <div>
+          <label class="block font-bold text-slate-200 mb-1">Enter SOC / Security Admin Alert Email:</label>
+          <input type="email" id="customSocEmail" value="extraloginzub@gmail.com" placeholder="soc-alerts@yourcompany.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
+          <span class="text-[11px] text-slate-500">All suspicious threat incidents with Section 65B hash seals will be dispatched to this address.</span>
         </div>
 
         <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
             <span class="font-bold text-sky-400 flex items-center gap-1.5">
-              <i class="fa-solid fa-clock"></i> Option 2: 24/7 Automated Background Hook
+              <i class="fa-solid fa-code"></i> Background Cloud Hook (Apps Script)
             </span>
             <a href="https://script.google.com" target="_blank" class="text-[10px] bg-sky-600/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30 hover:bg-sky-600/30 font-bold">
               Open script.google.com &rarr;
             </a>
           </div>
           <p class="text-slate-400 text-[11px]">
-            Create a new Apps Script project, paste the monitoring code, and set a 1-minute time-driven trigger.
+            Generates live monitoring code embedded with your custom SOC email. Runs 24/7 without needing client software.
           </p>
-          <button onclick="copyAppsScriptCode()" id="copyScriptBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1 rounded text-[11px] font-semibold transition flex items-center gap-1.5">
-            <i class="fa-solid fa-copy"></i> Copy Apps Script Code
+          <button onclick="copyDynamicAppsScriptCode()" id="copyScriptBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-copy"></i> Copy Customized Script Code
           </button>
         </div>
       </div>
 
       <div class="pt-2 flex justify-between items-center">
         <span class="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-          <i class="fa-solid fa-check"></i> Zero Local Installation Required
+          <i class="fa-solid fa-check"></i> Dynamic SOC Dispatch
         </span>
         <button onclick="closeActivationModal()" class="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition">
-          Got It / Close
+          Save &amp; Close
         </button>
       </div>
     </div>
   </div>
 
-  <!-- JavaScript Orchestration Logic -->
+  <!-- JavaScript Orchestration -->
   <script>
+    let globalInboxData = [];
+
     function openActivationModal() {
       const m = document.getElementById('activationModal');
       m.classList.remove('hidden');
@@ -247,7 +244,6 @@
       m.classList.remove('flex');
     }
 
-    // Auto-detect routing (?view=inbox_select OR ?case=<case_id>)
     window.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const caseId = urlParams.get('case');
@@ -267,40 +263,68 @@
       fetch('/api/get_session_inbox')
         .then(res => res.json())
         .then(emails => {
-          const container = document.getElementById('inboxItemsList');
-          container.innerHTML = '';
-
-          if (!emails || emails.length === 0) {
-            container.innerHTML = '<p class="text-slate-400 text-xs py-4 text-center">No recent inbox messages available. Re-connect or send a test email.</p>';
-            return;
-          }
-
-          emails.forEach(mail => {
-            const item = document.createElement('div');
-            item.className = "p-3.5 bg-slate-950/70 hover:bg-slate-800/80 border border-slate-800/80 hover:border-sky-500/40 rounded-xl transition flex flex-col md:flex-row items-start md:items-center justify-between gap-3 cursor-pointer";
-            item.onclick = () => {
-              window.location.href = `/scan_inbox_message/${mail.id}`;
-            };
-
-            item.innerHTML = `
-              <div class="space-y-0.5 max-w-2xl">
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-bold text-white">${mail.subject}</span>
-                </div>
-                <p class="text-[11px] text-slate-400 font-mono">${mail.from}</p>
-                <p class="text-[11px] text-slate-500 truncate">${mail.snippet}</p>
-              </div>
-              <button class="bg-sky-600/20 hover:bg-sky-600 text-sky-400 hover:text-white border border-sky-500/30 text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
-                Audit Email &rarr;
-              </button>
-            `;
-            container.appendChild(item);
-          });
+          globalInboxData = emails || [];
+          renderFilteredInbox(globalInboxData);
         })
         .catch(err => {
           console.error(err);
-          document.getElementById('inboxItemsList').innerHTML = '<p class="text-rose-400 text-xs py-4 text-center">Failed to load mailbox messages. Please try reconnecting.</p>';
+          document.getElementById('inboxItemsList').innerHTML = '<p class="text-rose-400 text-xs py-4 text-center">Failed to load mailbox messages.</p>';
         });
+    }
+
+    function filterInbox(type) {
+      document.getElementById('filterBtnAll').className = "px-3 py-1.5 rounded-lg text-slate-400 transition";
+      document.getElementById('filterBtnThreat').className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-rose-400 transition flex items-center gap-1";
+      document.getElementById('filterBtnClean').className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-emerald-400 transition flex items-center gap-1";
+
+      let filtered = [];
+      if (type === 'THREAT') {
+        document.getElementById('filterBtnThreat').className = "px-3 py-1.5 rounded-lg bg-rose-600 text-white transition flex items-center gap-1";
+        filtered = globalInboxData.filter(m => m.threat_preview === 'CRITICAL');
+      } else if (type === 'CLEAN') {
+        document.getElementById('filterBtnClean').className = "px-3 py-1.5 rounded-lg bg-emerald-600 text-white transition flex items-center gap-1";
+        filtered = globalInboxData.filter(m => m.threat_preview === 'CLEAN');
+      } else {
+        document.getElementById('filterBtnAll').className = "px-3 py-1.5 rounded-lg bg-sky-600 text-white transition";
+        filtered = globalInboxData;
+      }
+      renderFilteredInbox(filtered);
+    }
+
+    function renderFilteredInbox(emails) {
+      const container = document.getElementById('inboxItemsList');
+      container.innerHTML = '';
+
+      if (!emails || emails.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-xs py-6 text-center">No emails match the selected filter.</p>';
+        return;
+      }
+
+      emails.forEach(mail => {
+        const isThreat = mail.threat_preview === 'CRITICAL';
+        const item = document.createElement('div');
+        item.className = `p-3.5 bg-slate-950/70 hover:bg-slate-800/80 border ${isThreat ? 'border-rose-500/30' : 'border-slate-800/80'} rounded-xl transition flex flex-col md:flex-row items-start md:items-center justify-between gap-3 cursor-pointer`;
+        item.onclick = () => {
+          window.location.href = `/scan_inbox_message/${mail.id}`;
+        };
+
+        item.innerHTML = `
+          <div class="space-y-1 max-w-2xl">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-white">${mail.subject}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isThreat ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
+                ${isThreat ? 'Threat Cue Detected' : 'Verified Sender'}
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono">${mail.from}</p>
+            <p class="text-[11px] text-slate-500 truncate">${mail.snippet}</p>
+          </div>
+          <button class="bg-sky-600/20 hover:bg-sky-600 text-sky-400 hover:text-white border border-sky-500/30 text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+            Audit Email &rarr;
+          </button>
+        `;
+        container.appendChild(item);
+      });
     }
 
     function triggerLiveDemo() {
@@ -410,31 +434,38 @@
       document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
     }
 
-    function copyAppsScriptCode() {
-      const scriptCode = `const ALERT_RECIPIENT = "extraloginzub@gmail.com";
+    function copyDynamicAppsScriptCode() {
+      const socEmail = document.getElementById('customSocEmail').value.trim() || "extraloginzub@gmail.com";
+      const scriptCode = `const ALERT_RECIPIENT = "${socEmail}";
 const SCAN_API_ENDPOINT = "https://aiemailthreat.onrender.com/scan_raw";
-const THREAT_THRESHOLD = 40;
+const THREAT_THRESHOLD = 60;
 
 function autoScanRecentEmails() {
-  const threads = GmailApp.search("is:unread -label:SOC-SCANNED", 0, 10);
+  const query = "is:unread is:inbox -label:SOC-SCANNED -subject:\\"[SOC ALERT]\\" -subject:\\"[ALERT]\\"";
+  const threads = GmailApp.search(query, 0, 5);
   let label = GmailApp.getUserLabelByName("SOC-SCANNED") || GmailApp.createLabel("SOC-SCANNED");
 
   for (let i = 0; i < threads.length; i++) {
-    const msg = threads[i].getMessages().pop();
+    const messages = threads[i].getMessages();
+    const latestMessage = messages[messages.length - 1];
+    threads[i].addLabel(label);
+    threads[i].markRead();
+
+    if (latestMessage.getFrom().toLowerCase().includes("${socEmail.toLowerCase()}")) continue;
+
     try {
       const res = UrlFetchApp.fetch(SCAN_API_ENDPOINT, {
         method: "post",
         contentType: "application/json",
-        payload: JSON.stringify({ raw_email: msg.getRawContent() }),
+        payload: JSON.stringify({ raw_email: latestMessage.getRawContent() }),
         muteHttpExceptions: true
       });
       if (res.getResponseCode() === 200) {
         const data = JSON.parse(res.getContentText());
         const score = data.threat_assessment ? data.threat_assessment.threat_score : (data.threat_score || 0);
         if (score >= THREAT_THRESHOLD) {
-          GmailApp.sendEmail(ALERT_RECIPIENT, "[ALERT] Suspicious Email Detected (" + score + "%)", "View forensic dashboard: " + (data.report_url || "https://aiemailthreat.onrender.com/"));
+          GmailApp.sendEmail(ALERT_RECIPIENT, "🚨 [SOC ALERT] Threat Detected (" + score + "%)", "View forensic dashboard: " + (data.report_url || "https://aiemailthreat.onrender.com/"));
         }
-        threads[i].addLabel(label);
       }
     } catch(err) { Logger.log(err); }
   }
@@ -442,9 +473,9 @@ function autoScanRecentEmails() {
 
       navigator.clipboard.writeText(scriptCode).then(() => {
         const btn = document.getElementById('copyScriptBtn');
-        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Copied to Clipboard!';
+        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Copied with Custom Email!';
         setTimeout(() => {
-          btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Apps Script Code';
+          btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Customized Script Code';
         }, 2000);
       });
     }
