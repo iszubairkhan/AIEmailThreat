@@ -24,11 +24,11 @@ CASES_DB = {}
 MONITORED_ACCOUNTS = {}
 
 BEC_URGENCY_PATTERNS = [
-    r"\b(urgent|immediate action|suspended within \d+ hours|account deactivated)\b",
-    r"\b(wire transfer|bank payment|invoice overdue|direct deposit|gift cards?)\b",
-    r"\b(verify password|update credentials|reset password|click here immediately)\b",
-    r"\b(unauthorized login|compromised account|termination of access)\b",
-    r"\b(ceo request|confidential payment|vendor bank details updated)\b"
+    r"\b(urgent|immediate action|suspended within|account deactivated|act now)\b",
+    r"\b(wire transfer|bank payment|invoice overdue|direct deposit|gift cards?|payout)\b",
+    r"\b(verify password|update credentials|reset password|click here|login immediately)\b",
+    r"\b(unauthorized login|compromised account|termination of access|security alert)\b",
+    r"\b(ceo request|confidential payment|vendor bank details|payroll)\b"
 ]
 
 KNOWN_DATACENTER_ORGS = [
@@ -37,12 +37,53 @@ KNOWN_DATACENTER_ORGS = [
 
 TRUSTED_ESP_DOMAINS = [
     "sendgrid.net", "mailgun.org", "exacttarget.com", "amazonses.com", 
-    "hubspotemail.net", "salesforce.com", "zendesk.com", "mandrillapp.com",
-    "google.com", "openai.com", "sportmonks.com", "devpost.com"
+    "hubspotemail.net", "salesforce.com", "zendesk.com", "mandrillapp.com"
 ]
 
 # -------------------------------------------------------------
-# 1. FORENSIC & IP INTELLIGENCE ENGINES
+# 1. GMAIL LABEL MANAGEMENT ENGINE
+# -------------------------------------------------------------
+
+def get_or_create_soc_label(headers):
+    """Guarantees the SOC-SCANNED label exists in Gmail and returns its label ID."""
+    try:
+        res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/labels", headers=headers, timeout=5).json()
+        labels = res.get("labels", [])
+        for l in labels:
+            if l.get("name") == "SOC-SCANNED":
+                return l.get("id")
+        
+        create_res = requests.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+            headers=headers,
+            json={
+                "name": "SOC-SCANNED",
+                "labelListVisibility": "labelShow",
+                "messageListVisibility": "show"
+            },
+            timeout=5
+        ).json()
+        return create_res.get("id")
+    except Exception as e:
+        print(f"Error managing SOC label: {e}")
+        return None
+
+def apply_soc_label_to_message(headers, msg_id):
+    """Applies the SOC-SCANNED label to any message ID."""
+    try:
+        label_id = get_or_create_soc_label(headers)
+        if label_id:
+            requests.post(
+                f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}/modify",
+                headers=headers,
+                json={"addLabelIds": [label_id], "removeLabelIds": ["UNREAD"]},
+                timeout=5
+            )
+    except Exception as e:
+        print(f"Error applying SOC label to message {msg_id}: {e}")
+
+# -------------------------------------------------------------
+# 2. FORENSIC & IP INTELLIGENCE ENGINES
 # -------------------------------------------------------------
 
 def get_base_domain(domain_str: str) -> str:
@@ -51,6 +92,32 @@ def get_base_domain(domain_str: str) -> str:
     if len(parts) >= 2:
         return f"{parts[-2]}.{parts[-1]}"
     return domain_str.lower()
+
+def extract_email_body_text(msg):
+    """Recursively extracts full plaintext and HTML content from complex MIME messages."""
+    text_content = []
+    if msg.is_multipart():
+        for part in msg.walk():
+            ctype = part.get_content_type()
+            cdispo = str(part.get('Content-Disposition'))
+            if 'attachment' not in cdispo and ctype in ['text/plain', 'text/html']:
+                try:
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        text_content.append(payload.decode('utf-8', errors='ignore'))
+                except Exception:
+                    pass
+    else:
+        try:
+            payload = msg.get_payload(decode=True)
+            if payload:
+                text_content.append(payload.decode('utf-8', errors='ignore'))
+            else:
+                text_content.append(str(msg.get_payload()))
+        except Exception:
+            text_content.append(str(msg.get_payload()))
+            
+    return "\n".join(text_content)
 
 def get_ip_intelligence(ip_address: str):
     if not ip_address or ip_address in ["127.0.0.1", "localhost"]:
@@ -192,61 +259,54 @@ def analyze_email_forensics(raw_bytes: bytes):
             except Exception:
                 pass
 
-    body_content = ""
-    try:
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == 'text/plain':
-                    body_content = part.get_content()
-                    break
-        else:
-            body_content = msg.get_content()
-    except Exception:
-        body_content = str(msg.get_payload())
-
-    # Search for social engineering cues in subject + body
+    # Extract clean plaintext
+    body_content = extract_email_body_text(msg)
     full_text_to_scan = f"{subject}\n{body_content}"
+    
     found_cues = []
     for pattern in BEC_URGENCY_PATTERNS:
         matches = re.findall(pattern, full_text_to_scan, re.IGNORECASE)
         if matches:
             found_cues.extend(matches)
 
-    extracted_urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', str(body_content))
+    extracted_urls = re.findall(r'https?://[^\s<>"\'\)]+|www\.[^\s<>"\'\)]+', body_content)
 
     threat_score = 0
     threat_reasons = []
 
-    # 1. Critical Domain Spoofing
+    # 1. Critical Domain Spoofing (+45%)
     if is_spoofed_sender:
         threat_score += 45
-        threat_reasons.append(f"Domain Spoofing: 'From' domain ({sender_domain}) does not match Return-Path ({return_path_domain}).")
+        threat_reasons.append(f"Domain Spoofing: 'From' header ({sender_domain}) does not match Return-Path ({return_path_domain}).")
 
-    # 2. Missing DMARC on non-whitelisted apex domains
-    if "Missing" in dmarc_status and sender_base not in ["openai.com", "google.com", "microsoft.com", "apple.com", "amazon.com", "github.com", "sportmonks.com"]:
-        threat_score += 25
-        threat_reasons.append("Unenforced DMARC Policy: Domain allows unauthenticated messages.")
+    # 2. Missing DMARC Policy on non-apex domains (+20%)
+    if "Missing" in dmarc_status and sender_base not in ["google.com", "microsoft.com", "apple.com", "amazon.com", "github.com", "openai.com"]:
+        threat_score += 20
+        threat_reasons.append("Unenforced DMARC Policy: Domain allows inbound impersonation.")
 
-    # 3. Anonymized Sending Relay
+    # 3. Anonymized / Datacenter Sending Node (+25%)
     if origin_geo and origin_geo.get("is_anonymized") and not is_trusted_esp:
         threat_score += 25
         threat_reasons.append(f"Anonymized Sending Node: Origin IP belongs to {origin_geo['isp']} (Datacenter / VPN).")
 
-    # 4. High-Pressure Social Engineering / BEC Language
+    # 4. Social Engineering Urgency / BEC Language (+35% or +20%)
     if found_cues:
         nlp_penalty = 35 if len(found_cues) >= 2 else 20
         threat_score += nlp_penalty
-        threat_reasons.append(f"Social Engineering Keywords: Detected urgency/financial cues ({', '.join(set(found_cues))}).")
+        threat_reasons.append(f"Social Engineering Threat Cues: Detected keywords ({', '.join(set(found_cues))}).")
 
-    # 5. Embedded Links with Phishing / Urgency cues
+    # 5. Embedded Links with High-Pressure Cues (+25%)
     if extracted_urls and found_cues:
+        threat_score += 25
+        threat_reasons.append(f"Suspicious Embedded URLs: Discovered {len(extracted_urls)} link(s) combined with high-pressure cues.")
+    elif extracted_urls and is_spoofed_sender:
         threat_score += 20
-        threat_reasons.append(f"Actionable Links in High-Risk Context: Discovered {len(extracted_urls)} URL(s) accompanied by urgency cues.")
+        threat_reasons.append("Unauthenticated links inside spoofed sender envelope.")
 
     threat_score = min(threat_score, 100)
 
     if not threat_reasons:
-        threat_reasons.append("Verified Sender: Clean return-path alignment and authenticated delivery.")
+        threat_reasons.append("Verified Sender: Clean return-path alignment and authenticated corporate delivery.")
 
     return {
         "metadata": {
@@ -273,7 +333,7 @@ def analyze_email_forensics(raw_bytes: bytes):
     }
 
 # -------------------------------------------------------------
-# 2. 24/7 BACKGROUND MONITOR & SOC LABELING WORKER
+# 3. 24/7 BACKGROUND MONITORING WORKER
 # -------------------------------------------------------------
 
 def refresh_google_token(refresh_token):
@@ -290,29 +350,6 @@ def refresh_google_token(refresh_token):
     except Exception:
         return None
 
-def get_or_create_soc_label(headers):
-    try:
-        res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/labels", headers=headers, timeout=5).json()
-        labels = res.get("labels", [])
-        for l in labels:
-            if l.get("name") == "SOC-SCANNED":
-                return l.get("id")
-        
-        create_res = requests.post(
-            "https://gmail.googleapis.com/gmail/v1/users/me/labels",
-            headers=headers,
-            json={
-                "name": "SOC-SCANNED",
-                "labelListVisibility": "labelShow",
-                "messageListVisibility": "show"
-            },
-            timeout=5
-        ).json()
-        return create_res.get("id")
-    except Exception as e:
-        print(f"Error managing SOC label: {e}")
-        return None
-
 def background_threat_monitor():
     for email_addr, creds in list(MONITORED_ACCOUNTS.items()):
         try:
@@ -321,8 +358,6 @@ def background_threat_monitor():
                 continue
 
             headers = {"Authorization": f"Bearer {token}"}
-            label_id = get_or_create_soc_label(headers)
-
             list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=5"
             res = requests.get(list_url, headers=headers, timeout=10).json()
             messages = res.get("messages", [])
@@ -337,20 +372,12 @@ def background_threat_monitor():
                 analysis = analyze_email_forensics(raw_bytes)
                 threat_score = analysis['threat_assessment']['threat_score']
 
-                if threat_score >= 50:
+                if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     CASES_DB[case_id] = analysis
                     print(f"🚨 [AUTO ALERT] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
 
-                modify_payload = {"removeLabelIds": ["UNREAD"]}
-                if label_id:
-                    modify_payload["addLabelIds"] = [label_id]
-
-                requests.post(
-                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}/modify",
-                    headers=headers,
-                    json=modify_payload
-                )
+                apply_soc_label_to_message(headers, m['id'])
         except Exception as e:
             print(f"Monitor error for {email_addr}: {e}")
 
@@ -366,7 +393,7 @@ bg_thread = threading.Thread(target=background_threat_worker_loop, daemon=True)
 bg_thread.start()
 
 # -------------------------------------------------------------
-# 3. HTTP ROUTES & API ENDPOINTS
+# 4. HTTP ROUTES & API ENDPOINTS
 # -------------------------------------------------------------
 
 @app.route('/')
@@ -419,6 +446,9 @@ def auth_callback():
     session['access_token'] = access_token
     headers = {"Authorization": f"Bearer {access_token}"}
 
+    # Ensure label exists right away on initial login
+    get_or_create_soc_label(headers)
+
     user_email = "connected_user"
     try:
         profile_res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/profile", headers=headers, timeout=5).json()
@@ -453,7 +483,6 @@ def auth_callback():
             date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
             snippet = msg_meta.get("snippet", "")
 
-            # Consistent threat preview alignment with forensic regex
             is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
 
             inbox_list.append({
@@ -482,6 +511,9 @@ def scan_inbox_message(msg_id):
     
     raw_base64 = msg_res.get("raw", "")
     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
+
+    # Apply SOC label to Gmail immediately on audit
+    apply_soc_label_to_message(headers, msg_id)
 
     analysis = analyze_email_forensics(raw_bytes)
     case_id = str(uuid.uuid4())[:8]
@@ -570,7 +602,7 @@ def get_case(case_id):
     return jsonify({"error": "Case not found"}), 404
 
 # -------------------------------------------------------------
-# 4. ENTRY POINT
+# 5. ENTRY POINT
 # -------------------------------------------------------------
 
 if __name__ == '__main__':
