@@ -15,7 +15,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sih_nexora_sentinel_secret_
 
 # OAuth Environment Configurations
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
@@ -249,7 +249,7 @@ def home():
 @app.route('/auth/login')
 def auth_login():
     if not GOOGLE_CLIENT_ID:
-        return redirect("/?case=c66930bf&note=demo_mode_active")
+        return "<h3 style='color:red;font-family:sans-serif;'>OAuth Error: GOOGLE_CLIENT_ID is not configured.</h3>", 400
         
     scope = "https://www.googleapis.com/auth/gmail.readonly"
     auth_url = (
@@ -266,8 +266,12 @@ def auth_login():
 @app.route('/auth/callback')
 def auth_callback():
     code = request.args.get('code')
+    error = request.args.get('error')
+    
+    if error:
+        return f"<h3 style='color:red;font-family:sans-serif;'>Google Authorization Refused: {error}</h3>", 400
     if not code:
-        return redirect("/?error=auth_failed")
+        return "<h3 style='color:red;font-family:sans-serif;'>Error: No authorization code received from Google.</h3>", 400
 
     token_url = "https://oauth2.googleapis.com/token"
     token_data = {
@@ -282,7 +286,7 @@ def auth_callback():
     access_token = token_res.get("access_token")
 
     if not access_token:
-        return redirect("/?case=c66930bf")
+        return f"<h3 style='color:red;font-family:sans-serif;'>Token Exchange Failed:</h3><pre>{token_res}</pre>", 400
 
     headers = {"Authorization": f"Bearer {access_token}"}
     list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=is:inbox"
