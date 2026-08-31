@@ -1,297 +1,310 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AI Email Threat Sentinel — SOC Forensic Platform</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    /* Prevent horizontal viewport shifting on mobile browsers */
+    html, body {
+      overflow-x: hidden;
+      width: 100%;
+    }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between selection:bg-sky-500 selection:text-white">
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between selection:bg-sky-500 selection:text-white antialiased">
 
-  <!-- Header -->
-  <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur-md px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
-    <div class="flex items-center gap-3">
-      <div class="bg-sky-500/10 border border-sky-500/30 p-2.5 rounded-xl text-sky-400 text-xl shadow-inner">
-        <i class="fa-solid fa-shield-halved"></i>
+  <!-- Mobile-Responsive Header -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 py-3 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+      
+      <!-- Brand & Title -->
+      <div class="flex items-center gap-3">
+        <div class="bg-sky-500/10 border border-sky-500/30 p-2 rounded-xl text-sky-400 text-lg shadow-inner flex-shrink-0">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <div>
+          <h1 class="text-sm sm:text-base font-black tracking-wide text-white flex items-center gap-1.5 flex-wrap">
+            AI EMAIL THREAT SENTINEL
+            <span class="text-[10px] bg-sky-500/20 text-sky-400 border border-sky-500/30 px-1.5 py-0.5 rounded-full font-bold">SIH26106</span>
+          </h1>
+          <p class="text-[11px] text-slate-400">Automated Relay &amp; Origin De-Anonymization Platform</p>
+        </div>
       </div>
-      <div>
-        <h1 class="text-lg font-black tracking-wide text-white flex items-center gap-2">
-          AI EMAIL THREAT SENTINEL
-          <span class="text-[11px] bg-sky-500/20 text-sky-400 border border-sky-500/30 px-2 py-0.5 rounded-full font-bold">SIH26106</span>
-        </h1>
-        <p class="text-xs text-slate-400">Automated Relay &amp; Origin De-Anonymization Platform</p>
-      </div>
-    </div>
 
-    <div class="flex items-center gap-3">
-      <button onclick="scrollToHelpDesk()" class="text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900">
-        <i class="fa-solid fa-circle-question text-sky-400"></i> Help Desk &amp; FAQ
-      </button>
-      <div class="flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1.5 rounded-full text-xs font-semibold text-emerald-400">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-slow"></span>
-        SOC ENGINE READY
+      <!-- Action & Status Badges (Scrollable on small screens) -->
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none flex-nowrap sm:flex-wrap">
+        <button onclick="scrollToHelpDesk()" class="text-[11px] font-semibold text-slate-300 hover:text-white transition flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 whitespace-nowrap">
+          <i class="fa-solid fa-circle-question text-sky-400"></i> FAQ
+        </button>
+        <div class="flex items-center gap-1.5 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-slow"></span>
+          SOC READY
+        </div>
+        <button onclick="openActivationModal()" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 transition text-white px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 shadow-lg shadow-sky-600/20 whitespace-nowrap">
+          <i class="fa-solid fa-bolt"></i> 24/7 Setup
+        </button>
       </div>
-      <button onclick="openActivationModal()" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 transition text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-sky-600/20">
-        <i class="fa-solid fa-bolt"></i> 24/7 Monitoring Setup
-      </button>
     </div>
   </header>
 
-  <!-- Main Area -->
-  <main class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow space-y-6">
+  <!-- Main Container -->
+  <main class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-6 flex-grow space-y-5">
 
     <!-- Hero Card -->
-    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden text-center space-y-5">
-      <div class="absolute -right-16 -top-16 w-56 h-56 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="absolute -left-16 -bottom-16 w-56 h-56 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-8 shadow-2xl relative overflow-hidden text-center space-y-4">
+      <div class="absolute -right-16 -top-16 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -left-16 -bottom-16 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div class="max-w-2xl mx-auto space-y-2 relative z-10">
-        <h2 class="text-2xl md:text-3xl font-black text-white tracking-tight">Zero-Detonation Automated Forensic Triage</h2>
-        <p class="text-sm text-slate-400">
+        <h2 class="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">Zero-Detonation Forensic Triage</h2>
+        <p class="text-xs sm:text-sm text-slate-400 leading-relaxed">
           Inspect RFC-822 headers, trace origin MTA hops, query live DMARC/SPF records, and generate Section 65B SHA-256 evidence seals without executing payloads.
         </p>
       </div>
 
-      <div class="flex flex-wrap items-center justify-center gap-3.5 pt-2 relative z-10">
-        <a href="/auth/login" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-emerald-600/25 flex items-center gap-2.5">
-          <i class="fa-brands fa-google text-base"></i> 1-Click Connect Any Mailbox
+      <!-- Action Buttons Responsive Grid -->
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 pt-1 relative z-10">
+        <a href="/auth/login" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2">
+          <i class="fa-brands fa-google text-sm"></i> 1-Click Connect Any Mailbox
         </a>
-        <button onclick="triggerLiveDemo()" id="demoBtn" class="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-sky-500/25 flex items-center gap-2">
-          <i class="fa-solid fa-play"></i> 1-Click Live Threat Demo
+        <button onclick="triggerLiveDemo()" id="demoBtn" class="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo
         </button>
-        <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-5 py-3 rounded-xl text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-gear text-sky-400"></i> Setup 24/7 Cloud Sentinel
+        <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-gear text-sky-400 text-xs"></i> Setup 24/7 Cloud Sentinel
         </button>
       </div>
     </div>
 
-    <!-- Interactive Inbox Message Selector with Filters & Disconnect Bar -->
-    <div id="inboxSelectionSection" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+    <!-- Live Mailbox Inbox Selector with Filters -->
+    <div id="inboxSelectionSection" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4">
       
-      <!-- Mailbox Action Controls -->
-      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+      <!-- Session Bar -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-slate-950 p-3 rounded-xl border border-slate-800">
         <div class="flex items-center gap-2 text-xs text-slate-300 font-semibold">
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Active Mailbox Session Connected
+          <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span> Active Mailbox Connected
         </div>
-        <div class="flex items-center gap-2">
-          <button onclick="cleanupSocLabels()" id="cleanLabelBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
-            <i class="fa-solid fa-broom text-amber-400"></i> Clear SOC Labels
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <button onclick="cleanupSocLabels()" id="cleanLabelBtn" class="flex-1 sm:flex-none text-center bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-slate-700 transition">
+            <i class="fa-solid fa-broom text-amber-400"></i> Clear Labels
           </button>
-          <a href="/auth/logout" class="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-rose-500/30 transition flex items-center gap-1.5">
-            <i class="fa-solid fa-right-from-bracket"></i> Disconnect Mailbox
+          <a href="/auth/logout" class="flex-1 sm:flex-none text-center bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-rose-500/30 transition">
+            <i class="fa-solid fa-right-from-bracket"></i> Disconnect
           </a>
         </div>
       </div>
 
-      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <!-- Triage Filter Bar -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div>
-          <h3 class="text-base font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-inbox text-emerald-400"></i> Connected Mailbox Triage Hub
+          <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-inbox text-emerald-400"></i> Mailbox Triage Hub
           </h3>
-          <p class="text-xs text-slate-400 mt-0.5">Filter by threat level or select any email to generate an instant Section 65B forensic report.</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Filter by threat level or select any email to audit.</p>
         </div>
 
-        <!-- Filter Tabs -->
-        <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-          <button onclick="filterInbox('ALL')" id="filterBtnAll" class="px-3 py-1.5 rounded-lg bg-sky-600 text-white transition">
-            All Messages
+        <!-- Filter Buttons (Horizontal scrolling for mobile) -->
+        <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px] font-bold w-full sm:w-auto overflow-x-auto">
+          <button onclick="filterInbox('ALL')" id="filterBtnAll" class="flex-1 sm:flex-none px-2.5 py-1 rounded-lg bg-sky-600 text-white transition whitespace-nowrap">
+            All
           </button>
-          <button onclick="filterInbox('THREAT')" id="filterBtnThreat" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-rose-400 transition flex items-center gap-1">
-            <span class="w-2 h-2 rounded-full bg-rose-500"></span> Threat Cues Only
+          <button onclick="filterInbox('THREAT')" id="filterBtnThreat" class="flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 hover:text-rose-400 transition flex items-center justify-center gap-1 whitespace-nowrap">
+            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Threat Cues
           </button>
-          <button onclick="filterInbox('CLEAN')" id="filterBtnClean" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-emerald-400 transition flex items-center gap-1">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Verified Clean
+          <button onclick="filterInbox('CLEAN')" id="filterBtnClean" class="flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 hover:text-emerald-400 transition flex items-center justify-center gap-1 whitespace-nowrap">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Clean
           </button>
         </div>
       </div>
 
-      <!-- Item List -->
+      <!-- Mail List -->
       <div id="inboxItemsList" class="space-y-2"></div>
     </div>
 
     <!-- Forensic Dashboard -->
-    <div id="resultsSection" class="hidden space-y-6">
+    <div id="resultsSection" class="hidden space-y-4 sm:space-y-6">
       
       <!-- Metadata Strip -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-xs font-mono flex flex-wrap items-center justify-between gap-3 text-slate-400">
-        <div><span class="text-slate-500 font-sans font-bold">SUBJECT:</span> <span id="metaSubject" class="text-slate-200">Loading...</span></div>
-        <div><span class="text-slate-500 font-sans font-bold">FROM:</span> <span id="metaFrom" class="text-slate-200">Loading...</span></div>
-        <div><span class="text-slate-500 font-sans font-bold">RETURN-PATH:</span> <span id="metaReturnPath" class="text-rose-300 font-bold">Loading...</span></div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 text-[11px] font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-400">
+        <div class="truncate"><span class="text-slate-500 font-sans font-bold">SUBJECT:</span> <span id="metaSubject" class="text-slate-200">Loading...</span></div>
+        <div class="truncate"><span class="text-slate-500 font-sans font-bold">FROM:</span> <span id="metaFrom" class="text-slate-200">Loading...</span></div>
+        <div class="truncate"><span class="text-slate-500 font-sans font-bold">RETURN-PATH:</span> <span id="metaReturnPath" class="text-rose-300 font-bold">Loading...</span></div>
       </div>
 
-      <!-- Telemetry Metric Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <!-- Metric Cards Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
-          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Threat Score</span>
-          <div class="flex items-baseline gap-2 my-2">
-            <span id="threatScoreVal" class="text-4xl font-black text-rose-500">0%</span>
-            <span id="riskTierVal" class="text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">Critical</span>
+        <!-- Threat Score -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
+          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Threat Score</span>
+          <div class="flex items-baseline gap-2 my-1.5">
+            <span id="threatScoreVal" class="text-3xl sm:text-4xl font-black text-rose-500">0%</span>
+            <span id="riskTierVal" class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">Critical</span>
           </div>
-          <span class="text-[11px] text-slate-500">Multi-Factor Heuristic Engine</span>
+          <span class="text-[10px] text-slate-500">Multi-Factor Heuristic Engine</span>
         </div>
 
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
-          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Origin Location</span>
-          <div class="my-2">
-            <div id="originLocationVal" class="text-sm font-bold text-white flex items-center gap-1.5 truncate">
+        <!-- Origin Location -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
+          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Origin Location</span>
+          <div class="my-1.5">
+            <div id="originLocationVal" class="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 truncate">
               <i class="fa-solid fa-location-dot text-sky-400"></i> Resolving...
             </div>
-            <div id="originIpVal" class="text-xs font-mono text-slate-400 mt-0.5">0.0.0.0</div>
+            <div id="originIpVal" class="text-[11px] font-mono text-slate-400 mt-0.5 truncate">0.0.0.0</div>
           </div>
-          <span id="nodeTypeVal" class="text-[11px] text-amber-400 font-semibold truncate">Data Center / VPN Node</span>
+          <span id="nodeTypeVal" class="text-[10px] text-amber-400 font-semibold truncate">Data Center / VPN Node</span>
         </div>
 
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
-          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">DNS Protocol Check</span>
-          <div class="my-2 space-y-1">
-            <div class="text-xs text-slate-300 flex justify-between truncate">
-              <span class="text-slate-400">SPF:</span> <span id="spfVal" class="font-bold text-rose-400">SoftFail (~all)</span>
+        <!-- DNS Protocol Check -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
+          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">DNS Protocol Check</span>
+          <div class="my-1.5 space-y-0.5 text-[11px]">
+            <div class="text-slate-300 flex justify-between truncate">
+              <span class="text-slate-400">SPF:</span> <span id="spfVal" class="font-bold text-rose-400">SoftFail</span>
             </div>
-            <div class="text-xs text-slate-300 flex justify-between truncate">
-              <span class="text-slate-400">DMARC:</span> <span id="dmarcVal" class="font-bold text-amber-400">p=none (Vulnerable)</span>
+            <div class="text-slate-300 flex justify-between truncate">
+              <span class="text-slate-400">DMARC:</span> <span id="dmarcVal" class="font-bold text-amber-400">p=none</span>
             </div>
           </div>
-          <span class="text-[11px] text-slate-500">Live DNS TXT Records</span>
+          <span class="text-[10px] text-slate-500">Live DNS Records</span>
         </div>
 
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-lg">
-          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Sec 65B Digital Seal</span>
-          <div class="my-2">
-            <span class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-              <i class="fa-solid fa-certificate"></i> Court Admissible (BSA 2023)
+        <!-- Section 65B Digital Seal -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
+          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sec 65B Digital Seal</span>
+          <div class="my-1.5">
+            <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+              <i class="fa-solid fa-certificate"></i> Admissible (BSA 2023)
             </span>
-            <div id="hashVal" class="text-[10px] font-mono text-slate-400 break-all mt-1 bg-slate-950 p-1.5 rounded border border-slate-800 select-all">
+            <div id="hashVal" class="text-[9px] font-mono text-slate-400 break-all mt-1 bg-slate-950 p-1.5 rounded border border-slate-800 select-all line-clamp-2">
               e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
             </div>
           </div>
-          <span class="text-[11px] text-slate-500">Immutable SHA-256 Hash</span>
+          <span class="text-[10px] text-slate-500">Immutable SHA-256 Hash</span>
         </div>
       </div>
 
-      <!-- Indicators & MTA Hop Map -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 shadow-lg">
-          <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+      <!-- Indicators & MTA Hops -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2.5 shadow-lg">
+          <h3 class="text-xs sm:text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
             <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Threat Indicators
           </h3>
-          <ul id="reasonsList" class="space-y-2 text-xs text-slate-300"></ul>
+          <ul id="reasonsList" class="space-y-1.5 text-xs text-slate-300"></ul>
         </div>
 
-        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 shadow-lg">
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2.5 shadow-lg">
           <div class="flex items-center justify-between">
-            <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <i class="fa-solid fa-network-wired text-sky-400"></i> Reverse MTA Hop Traversal (Bottom-to-Top)
+            <h3 class="text-xs sm:text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-network-wired text-sky-400"></i> Reverse MTA Hop Traversal
             </h3>
-            <span id="hopCountVal" class="text-[11px] text-slate-400">Relays Traced</span>
+            <span id="hopCountVal" class="text-[10px] text-slate-400">Relays Traced</span>
           </div>
           <div id="hopsContainer" class="space-y-2 text-xs font-mono"></div>
         </div>
       </div>
     </div>
 
-    <!-- SOC Help Desk & Troubleshooting Section -->
-    <section id="helpDeskSection" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 md:p-8 space-y-6">
-      <div class="border-b border-slate-800 pb-4 flex items-center justify-between">
+    <!-- SOC Help Desk & FAQ -->
+    <section id="helpDeskSection" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4">
+      <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
         <div>
-          <h3 class="text-lg font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-headset text-sky-400"></i> SOC Sentinel Help Desk &amp; Quick Guide
+          <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-headset text-sky-400"></i> Help Desk &amp; Quick Guide
           </h3>
-          <p class="text-xs text-slate-400 mt-1">Simple guides for 24/7 background protection, session management, and deactivation.</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Background monitoring and session controls.</p>
         </div>
-        <span class="text-xs bg-sky-500/10 text-sky-400 border border-sky-500/20 px-3 py-1 rounded-full font-bold">
-          Documentation
+        <span class="text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-full font-bold">
+          Docs
         </span>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        <!-- Guide 1: Enable 24/7 Monitoring -->
-        <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-3">
-          <h4 class="text-sm font-bold text-emerald-400 flex items-center gap-2">
-            <i class="fa-solid fa-circle-play"></i> How to Enable 24/7 Background Monitoring
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+          <h4 class="text-xs sm:text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-play"></i> 24/7 Monitoring Setup
           </h4>
-          <ol class="text-xs text-slate-300 space-y-2 list-decimal list-inside">
-            <li>Click <strong>24/7 Monitoring Setup</strong> at the top of this page.</li>
-            <li>Enter your preferred <strong>Incident Alert Email</strong> and click <strong>Copy Script Code</strong>.</li>
-            <li>Open <a href="https://script.google.com" target="_blank" class="text-sky-400 underline">script.google.com</a> and click <strong>New Project</strong>.</li>
-            <li>Paste the copied script and press <strong>Save (Ctrl+S)</strong>.</li>
-            <li>Click <strong>Triggers (Clock icon)</strong> &rarr; <strong>+ Add Trigger</strong> &rarr; select <code>autoScanRecentEmails</code> &rarr; <strong>Minutes timer (Every 1 minute)</strong>.</li>
+          <ol class="text-[11px] text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
+            <li>Click <strong>24/7 Setup</strong> in the top bar.</li>
+            <li>Enter your <strong>Incident Alert Email</strong> and click <strong>Copy Script</strong>.</li>
+            <li>Open <a href="https://script.google.com" target="_blank" class="text-sky-400 underline">script.google.com</a> &rarr; <strong>New Project</strong>.</li>
+            <li>Paste the script and press <strong>Save (Ctrl+S)</strong>.</li>
+            <li>Add a <strong>1-minute Time-driven Trigger</strong> for <code>autoScanRecentEmails</code>.</li>
           </ol>
         </div>
 
-        <!-- Guide 2: Disconnect & Remove Access -->
-        <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-3">
-          <h4 class="text-sm font-bold text-rose-400 flex items-center gap-2">
-            <i class="fa-solid fa-circle-stop"></i> How to Disconnect or Disable Monitoring
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+          <h4 class="text-xs sm:text-sm font-bold text-rose-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-stop"></i> Disconnecting Access
           </h4>
-          <div class="space-y-2 text-xs text-slate-300">
-            <p><strong>To Disconnect Web Session:</strong> Click the <span class="text-rose-400 font-bold">Disconnect Mailbox</span> button on the triage hub to immediately terminate OAuth tokens.</p>
-            <p><strong>To Stop 24/7 Apps Script:</strong> Go to <a href="https://script.google.com" target="_blank" class="text-sky-400 underline">script.google.com</a> &rarr; click <strong>Triggers</strong> &rarr; click the three dots on the trigger &rarr; select <strong>Delete trigger</strong>.</p>
-            <p><strong>To Revoke Third-Party Permission:</strong> Visit <a href="https://myaccount.google.com/connections" target="_blank" class="text-sky-400 underline">myaccount.google.com/connections</a> &rarr; find AI Threat Sentinel &rarr; click <strong>Delete all connections</strong>.</p>
+          <div class="space-y-1 text-[11px] text-slate-300 leading-relaxed">
+            <p><strong>Disconnect Web:</strong> Click <span class="text-rose-400 font-semibold">Disconnect</span> on the triage hub.</p>
+            <p><strong>Stop 24/7 Hook:</strong> Open <a href="https://script.google.com" target="_blank" class="text-sky-400 underline">script.google.com</a> &rarr; <strong>Triggers</strong> &rarr; <strong>Delete Trigger</strong>.</p>
+            <p><strong>Revoke App:</strong> Visit <a href="https://myaccount.google.com/connections" target="_blank" class="text-sky-400 underline">Google Connections</a> &rarr; Remove AI Threat Sentinel.</p>
           </div>
         </div>
-
       </div>
     </section>
 
   </main>
 
-  <footer class="border-t border-slate-800 bg-slate-900/60 py-4 text-center text-xs text-slate-500">
+  <!-- Auto-Updating Year Footer -->
+  <footer class="border-t border-slate-800 bg-slate-900/60 py-3 text-center text-[11px] text-slate-500">
     &copy; <span id="currentYear"></span> Team Nexora. All rights reserved.
   </footer>
+
   <!-- Dynamic SOC Alert Configuration Modal -->
-  <div id="activationModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
+  <div id="activationModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 hidden items-center justify-center p-3 sm:p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-4 sm:p-6 space-y-3.5 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
           <i class="fa-solid fa-bell text-sky-400"></i> Automated SOC Incident Dispatch
         </h3>
-        <button onclick="closeActivationModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+        <button onclick="closeActivationModal()" class="text-slate-400 hover:text-white text-lg p-1">&times;</button>
       </div>
 
       <div class="space-y-3 text-xs text-slate-300">
         <div>
-          <label class="block font-bold text-slate-200 mb-1">Enter SOC / Security Admin Alert Email:</label>
-          <input type="email" id="customSocEmail" value="extraloginzub@gmail.com" placeholder="soc-alerts@yourcompany.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
-          <span class="text-[11px] text-slate-500">All suspicious threat incidents with Section 65B hash seals will be dispatched to this address.</span>
+          <label class="block font-bold text-slate-200 mb-1">SOC / Admin Alert Email:</label>
+          <input type="email" id="customSocEmail" value="extraloginzub@gmail.com" placeholder="soc-alerts@yourcompany.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
         </div>
 
-        <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
             <span class="font-bold text-sky-400 flex items-center gap-1.5">
-              <i class="fa-solid fa-code"></i> Background Cloud Hook (Apps Script)
+              <i class="fa-solid fa-code"></i> 24/7 Cloud Hook
             </span>
-            <a href="https://script.google.com" target="_blank" class="text-[10px] bg-sky-600/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30 hover:bg-sky-600/30 font-bold">
+            <a href="https://script.google.com" target="_blank" class="text-[10px] bg-sky-600/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30 font-bold">
               Open script.google.com &rarr;
             </a>
           </div>
           <p class="text-slate-400 text-[11px]">
-            Generates live monitoring code embedded with your custom SOC email. Runs 24/7 without needing client software.
+            Embedded with your custom SOC email to run 24/7 in Google Cloud without client software.
           </p>
-          <button onclick="copyDynamicAppsScriptCode()" id="copyScriptBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition flex items-center gap-1.5">
-            <i class="fa-solid fa-copy"></i> Copy Customized Script Code
+          <button onclick="copyDynamicAppsScriptCode()" id="copyScriptBtn" class="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-copy"></i> Copy Script Code
           </button>
         </div>
       </div>
 
-      <div class="pt-2 flex justify-between items-center">
-        <span class="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-          <i class="fa-solid fa-check"></i> Dynamic SOC Dispatch
+      <div class="pt-2 flex justify-between items-center border-t border-slate-800">
+        <span class="text-[10px] text-emerald-400 font-semibold">
+          <i class="fa-solid fa-check"></i> Zero Local Installation
         </span>
-        <button onclick="closeActivationModal()" class="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition">
-          Save &amp; Close
+        <button onclick="closeActivationModal()" class="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition">
+          Close
         </button>
       </div>
     </div>
   </div>
 
-  <!-- JavaScript Orchestration -->
+  <!-- JavaScript -->
   <script>
     let globalInboxData = [];
 
@@ -312,7 +325,10 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('currentYear').innerText = new Date().getFullYear();      
+      // Set current year dynamically
+      const yearEl = document.getElementById('currentYear');
+      if (yearEl) yearEl.innerText = new Date().getFullYear();
+
       const urlParams = new URLSearchParams(window.location.search);
       const caseId = urlParams.get('case');
       const view = urlParams.get('view');
@@ -350,30 +366,30 @@
         .then(data => {
           btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Cleaned!';
           setTimeout(() => {
-            btn.innerHTML = '<i class="fa-solid fa-broom text-amber-400"></i> Clear SOC Labels';
+            btn.innerHTML = '<i class="fa-solid fa-broom text-amber-400"></i> Clear Labels';
             btn.disabled = false;
           }, 2000);
         })
         .catch(() => {
-          btn.innerHTML = '<i class="fa-solid fa-broom text-amber-400"></i> Clear SOC Labels';
+          btn.innerHTML = '<i class="fa-solid fa-broom text-amber-400"></i> Clear Labels';
           btn.disabled = false;
         });
     }
 
     function filterInbox(type) {
-      document.getElementById('filterBtnAll').className = "px-3 py-1.5 rounded-lg text-slate-400 transition";
-      document.getElementById('filterBtnThreat').className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-rose-400 transition flex items-center gap-1";
-      document.getElementById('filterBtnClean').className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-emerald-400 transition flex items-center gap-1";
+      document.getElementById('filterBtnAll').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 transition whitespace-nowrap";
+      document.getElementById('filterBtnThreat').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 hover:text-rose-400 transition flex items-center justify-center gap-1 whitespace-nowrap";
+      document.getElementById('filterBtnClean').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 hover:text-emerald-400 transition flex items-center justify-center gap-1 whitespace-nowrap";
 
       let filtered = [];
       if (type === 'THREAT') {
-        document.getElementById('filterBtnThreat').className = "px-3 py-1.5 rounded-lg bg-rose-600 text-white transition flex items-center gap-1";
+        document.getElementById('filterBtnThreat').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg bg-rose-600 text-white transition flex items-center justify-center gap-1 whitespace-nowrap";
         filtered = globalInboxData.filter(m => m.threat_preview === 'CRITICAL');
       } else if (type === 'CLEAN') {
-        document.getElementById('filterBtnClean').className = "px-3 py-1.5 rounded-lg bg-emerald-600 text-white transition flex items-center gap-1";
+        document.getElementById('filterBtnClean').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg bg-emerald-600 text-white transition flex items-center justify-center gap-1 whitespace-nowrap";
         filtered = globalInboxData.filter(m => m.threat_preview === 'CLEAN');
       } else {
-        document.getElementById('filterBtnAll').className = "px-3 py-1.5 rounded-lg bg-sky-600 text-white transition";
+        document.getElementById('filterBtnAll').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg bg-sky-600 text-white transition whitespace-nowrap";
         filtered = globalInboxData;
       }
       renderFilteredInbox(filtered);
@@ -384,30 +400,30 @@
       container.innerHTML = '';
 
       if (!emails || emails.length === 0) {
-        container.innerHTML = '<p class="text-slate-400 text-xs py-6 text-center">No emails match the selected filter.</p>';
+        container.innerHTML = '<p class="text-slate-400 text-xs py-4 text-center">No messages match the selected filter.</p>';
         return;
       }
 
       emails.forEach(mail => {
         const isThreat = mail.threat_preview === 'CRITICAL';
         const item = document.createElement('div');
-        item.className = `p-3.5 bg-slate-950/70 hover:bg-slate-800/80 border ${isThreat ? 'border-rose-500/30' : 'border-slate-800/80'} rounded-xl transition flex flex-col md:flex-row items-start md:items-center justify-between gap-3 cursor-pointer`;
+        item.className = `p-3 bg-slate-950/70 hover:bg-slate-800/80 border ${isThreat ? 'border-rose-500/30' : 'border-slate-800/80'} rounded-xl transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 cursor-pointer`;
         item.onclick = () => {
           window.location.href = `/scan_inbox_message/${mail.id}`;
         };
 
         item.innerHTML = `
-          <div class="space-y-1 max-w-2xl">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-bold text-white">${mail.subject}</span>
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isThreat ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
-                ${isThreat ? 'Threat Cue Detected' : 'Verified Sender'}
+          <div class="space-y-1 w-full sm:max-w-xl">
+            <div class="flex items-center justify-between sm:justify-start gap-2">
+              <span class="text-xs font-bold text-white truncate">${mail.subject}</span>
+              <span class="text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${isThreat ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
+                ${isThreat ? 'Threat Cue' : 'Clean'}
               </span>
             </div>
-            <p class="text-[11px] text-slate-400 font-mono">${mail.from}</p>
-            <p class="text-[11px] text-slate-500 truncate">${mail.snippet}</p>
+            <p class="text-[10px] text-slate-400 font-mono truncate">${mail.from}</p>
+            <p class="text-[10px] text-slate-500 truncate">${mail.snippet}</p>
           </div>
-          <button class="bg-sky-600/20 hover:bg-sky-600 text-sky-400 hover:text-white border border-sky-500/30 text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+          <button class="w-full sm:w-auto bg-sky-600/20 hover:bg-sky-600 text-sky-400 hover:text-white border border-sky-500/30 text-[11px] font-bold px-3 py-1 rounded-lg transition whitespace-nowrap text-center">
             Audit Email &rarr;
           </button>
         `;
@@ -421,19 +437,19 @@
 
     function fetchCaseData(caseId) {
       const btn = document.getElementById('demoBtn');
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running Zero-Execution Forensics...';
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
       btn.disabled = true;
 
       fetch(`/api/get_case/${caseId}`)
         .then(res => res.json())
         .then(data => {
           renderDashboard(data);
-          btn.innerHTML = '<i class="fa-solid fa-play"></i> 1-Click Live Threat Demo';
+          btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
           btn.disabled = false;
         })
         .catch(err => {
           console.error(err);
-          btn.innerHTML = '<i class="fa-solid fa-play"></i> 1-Click Live Threat Demo';
+          btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
           btn.disabled = false;
         });
     }
@@ -456,63 +472,61 @@
       tierEl.innerText = assessment.risk_tier || "Critical Risk";
 
       if (score >= 70) {
-        scoreEl.className = "text-4xl font-black text-rose-500";
-        tierEl.className = "text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20";
+        scoreEl.className = "text-3xl sm:text-4xl font-black text-rose-500";
+        tierEl.className = "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20";
       } else if (score >= 40) {
-        scoreEl.className = "text-4xl font-black text-amber-500";
-        tierEl.className = "text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20";
+        scoreEl.className = "text-3xl sm:text-4xl font-black text-amber-500";
+        tierEl.className = "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20";
       } else {
-        scoreEl.className = "text-4xl font-black text-emerald-500";
-        tierEl.className = "text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        scoreEl.className = "text-3xl sm:text-4xl font-black text-emerald-500";
+        tierEl.className = "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
       }
       
       const loc = origin.city && origin.country ? `${origin.city}, ${origin.country}` : (origin.country || "Frankfurt, Germany");
       document.getElementById('originLocationVal').innerHTML = `<i class="fa-solid fa-location-dot text-sky-400"></i> ${loc}`;
       document.getElementById('originIpVal').innerText = origin.ip || "185.220.101.5";
-      document.getElementById('nodeTypeVal').innerText = origin.node_type || "Data Center / Tor Relay Node";
+      document.getElementById('nodeTypeVal').innerText = origin.node_type || "Data Center Node";
 
-      document.getElementById('spfVal').innerText = dnsAuth.spf || "SoftFail (~all)";
-      document.getElementById('dmarcVal').innerText = dnsAuth.dmarc || "p=none (Vulnerable)";
+      document.getElementById('spfVal').innerText = dnsAuth.spf || "SoftFail";
+      document.getElementById('dmarcVal').innerText = dnsAuth.dmarc || "p=none";
       document.getElementById('hashVal').innerText = metadata.evidence_sha256 || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
       const reasonsList = document.getElementById('reasonsList');
       reasonsList.innerHTML = '';
       const reasons = assessment.threat_reasons || [
         "Display header spoofing (From domain does not match Return-Path)",
-        "Unenforced DMARC policy allows unauthenticated spoofing",
-        "NLP Urgency cues detected in plain body text"
+        "Unenforced DMARC policy allows unauthenticated spoofing"
       ];
       reasons.forEach(r => {
         const li = document.createElement('li');
-        li.className = "flex items-start gap-2 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800";
-        li.innerHTML = `<i class="fa-solid fa-xmark text-rose-400 mt-0.5"></i> <span>${r}</span>`;
+        li.className = "flex items-start gap-2 bg-slate-950/60 p-2 rounded-lg border border-slate-800 text-[11px]";
+        li.innerHTML = `<i class="fa-solid fa-xmark text-rose-400 mt-0.5 flex-shrink-0"></i> <span>${r}</span>`;
         reasonsList.appendChild(li);
       });
 
       const hopsContainer = document.getElementById('hopsContainer');
       hopsContainer.innerHTML = '';
       const hops = data.hops && data.hops.length > 0 ? data.hops : [
-        { hop_index: 1, raw: "Received: from 185.220.101.5 by mail.relay.org", extracted_ips: ["185.220.101.5"] },
-        { hop_index: 2, raw: "Received: from relay.forwarder.org [51.15.89.24] by mx.google.com", extracted_ips: ["51.15.89.24"] }
+        { hop_index: 1, raw: "Received: from 185.220.101.5 by mail.relay.org", extracted_ips: ["185.220.101.5"] }
       ];
 
-      document.getElementById('hopCountVal').innerText = `${hops.length} Relays Traced`;
+      document.getElementById('hopCountVal').innerText = `${hops.length} Relays`;
 
       hops.forEach((h, idx) => {
         const isOrigin = idx === 0;
         const hopDiv = document.createElement('div');
         hopDiv.className = isOrigin 
-          ? "bg-rose-950/40 border border-rose-500/30 p-3 rounded-lg flex items-center justify-between"
-          : "bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between text-slate-400";
+          ? "bg-rose-950/40 border border-rose-500/30 p-2.5 rounded-lg flex items-center justify-between gap-2"
+          : "bg-slate-950 p-2 rounded-lg border border-slate-800 flex items-center justify-between gap-2 text-slate-400";
         
         hopDiv.innerHTML = `
-          <div>
-            <span class="font-bold ${isOrigin ? 'text-rose-400' : 'text-slate-300'}">[HOP ${h.hop_index} - ${isOrigin ? 'SENDER ORIGIN' : 'RELAY NODE'}]</span>
-            <p class="${isOrigin ? 'text-slate-200' : 'text-slate-400'} mt-0.5">${h.extracted_ips && h.extracted_ips.length > 0 ? h.extracted_ips[0] : 'Relay Gateway'}</p>
-            <span class="text-[10px] text-slate-500">${h.raw}</span>
+          <div class="truncate">
+            <span class="font-bold text-[10px] ${isOrigin ? 'text-rose-400' : 'text-slate-300'}">[HOP ${h.hop_index} - ${isOrigin ? 'ORIGIN' : 'RELAY'}]</span>
+            <p class="${isOrigin ? 'text-slate-200' : 'text-slate-400'} text-[11px] truncate">${h.extracted_ips && h.extracted_ips.length > 0 ? h.extracted_ips[0] : 'Relay Gateway'}</p>
+            <span class="text-[9px] text-slate-500 truncate block">${h.raw}</span>
           </div>
-          <span class="text-xs ${isOrigin ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'} px-2 py-1 rounded font-sans font-bold">
-            ${isOrigin ? 'Origin Exposed' : 'MTA Hop'}
+          <span class="text-[9px] ${isOrigin ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'} px-1.5 py-0.5 rounded font-sans font-bold flex-shrink-0">
+            ${isOrigin ? 'Origin' : 'Hop'}
           </span>
         `;
         hopsContainer.appendChild(hopDiv);
@@ -561,9 +575,9 @@ function autoScanRecentEmails() {
 
       navigator.clipboard.writeText(scriptCode).then(() => {
         const btn = document.getElementById('copyScriptBtn');
-        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Copied with Custom Email!';
+        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Copied!';
         setTimeout(() => {
-          btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Customized Script Code';
+          btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Script Code';
         }, 2000);
       });
     }
