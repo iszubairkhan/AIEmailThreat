@@ -56,21 +56,34 @@
 
       <!-- Hero Action Hub -->
       <div class="flex flex-wrap items-center justify-center gap-3.5 pt-2 relative z-10">
-        
-        <!-- Primary 1-Click Google OAuth Integration -->
         <a href="/auth/login" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-emerald-600/25 flex items-center gap-2.5">
           <i class="fa-brands fa-google text-base"></i> 1-Click Connect Any Mailbox
         </a>
-
-        <!-- Live Synthetic Attack Simulation -->
         <button onclick="triggerLiveDemo()" id="demoBtn" class="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-sky-500/25 flex items-center gap-2">
           <i class="fa-solid fa-play"></i> 1-Click Live Threat Demo
         </button>
-
-        <!-- Device Integration Setup Modal Trigger -->
         <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-5 py-3 rounded-xl text-sm transition flex items-center gap-2">
           <i class="fa-solid fa-gear text-sky-400"></i> Setup Device Integration
         </button>
+      </div>
+    </div>
+
+    <!-- Live Mailbox Inbox Selector -->
+    <div id="inboxSelectionSection" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-inbox text-emerald-400 text-lg"></i>
+          <h3 class="text-base font-bold text-white">Live Connected Mailbox — Select Email to Audit</h3>
+        </div>
+        <span class="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full font-semibold">
+          Authorized Stream
+        </span>
+      </div>
+      <div id="inboxItemsList" class="space-y-2">
+        <div class="text-center py-6 text-slate-400 text-xs">
+          <i class="fa-solid fa-spinner fa-spin text-sky-400 text-base mb-2"></i><br>
+          Fetching recent messages from your mailbox...
+        </div>
       </div>
     </div>
 
@@ -140,8 +153,6 @@
 
       <!-- Indicators & MTA Hop Map -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        <!-- Detected Risk Indicators -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 shadow-lg">
           <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
             <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Threat Indicators
@@ -149,7 +160,6 @@
           <ul id="reasonsList" class="space-y-2 text-xs text-slate-300"></ul>
         </div>
 
-        <!-- Visual Reverse MTA Hop Chain -->
         <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 shadow-lg">
           <div class="flex items-center justify-between">
             <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -179,8 +189,6 @@
       </div>
 
       <div class="space-y-3 text-xs text-slate-300">
-        
-        <!-- Method 1: Instant OAuth -->
         <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
             <span class="font-bold text-emerald-400 flex items-center gap-1.5">
@@ -196,7 +204,6 @@
           </a>
         </div>
 
-        <!-- Method 2: Google Apps Script Background Hook -->
         <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
             <span class="font-bold text-sky-400 flex items-center gap-1.5">
@@ -207,13 +214,12 @@
             </a>
           </div>
           <p class="text-slate-400 text-[11px]">
-            Create a new Apps Script project, paste the monitoring code, and set a 1-minute time-driven trigger. Threats will automatically trigger SOC alerts with direct incident links.
+            Create a new Apps Script project, paste the monitoring code, and set a 1-minute time-driven trigger.
           </p>
           <button onclick="copyAppsScriptCode()" id="copyScriptBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1 rounded text-[11px] font-semibold transition flex items-center gap-1.5">
             <i class="fa-solid fa-copy"></i> Copy Apps Script Code
           </button>
         </div>
-
       </div>
 
       <div class="pt-2 flex justify-between items-center">
@@ -241,14 +247,61 @@
       m.classList.remove('flex');
     }
 
-    // Auto-detect ?case=<case_id> parameter
+    // Auto-detect routing (?view=inbox_select OR ?case=<case_id>)
     window.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const caseId = urlParams.get('case');
-      if (caseId) {
+      const view = urlParams.get('view');
+
+      if (view === 'inbox_select') {
+        loadInboxSelector();
+      } else if (caseId) {
         fetchCaseData(caseId);
       }
     });
+
+    function loadInboxSelector() {
+      document.getElementById('inboxSelectionSection').classList.remove('hidden');
+      document.getElementById('inboxSelectionSection').scrollIntoView({ behavior: 'smooth' });
+
+      fetch('/api/get_session_inbox')
+        .then(res => res.json())
+        .then(emails => {
+          const container = document.getElementById('inboxItemsList');
+          container.innerHTML = '';
+
+          if (!emails || emails.length === 0) {
+            container.innerHTML = '<p class="text-slate-400 text-xs py-4 text-center">No recent inbox messages available. Re-connect or send a test email.</p>';
+            return;
+          }
+
+          emails.forEach(mail => {
+            const item = document.createElement('div');
+            item.className = "p-3.5 bg-slate-950/70 hover:bg-slate-800/80 border border-slate-800/80 hover:border-sky-500/40 rounded-xl transition flex flex-col md:flex-row items-start md:items-center justify-between gap-3 cursor-pointer";
+            item.onclick = () => {
+              window.location.href = `/scan_inbox_message/${mail.id}`;
+            };
+
+            item.innerHTML = `
+              <div class="space-y-0.5 max-w-2xl">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-white">${mail.subject}</span>
+                </div>
+                <p class="text-[11px] text-slate-400 font-mono">${mail.from}</p>
+                <p class="text-[11px] text-slate-500 truncate">${mail.snippet}</p>
+              </div>
+              <button class="bg-sky-600/20 hover:bg-sky-600 text-sky-400 hover:text-white border border-sky-500/30 text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                Audit Email &rarr;
+              </button>
+            `;
+            container.appendChild(item);
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById('inboxItemsList').innerHTML = '<p class="text-rose-400 text-xs py-4 text-center">Failed to load mailbox messages. Please try reconnecting.</p>';
+        });
+    }
 
     function triggerLiveDemo() {
       fetchCaseData('c66930bf');
@@ -279,12 +332,10 @@
       const origin = data.origin_investigation || {};
       const dnsAuth = data.dns_authentication || {};
 
-      // 1. Update Metadata Strip
       document.getElementById('metaSubject').innerText = metadata.subject || "(No Subject)";
       document.getElementById('metaFrom').innerText = metadata.from || "Unknown";
       document.getElementById('metaReturnPath').innerText = metadata.return_path || "N/A";
 
-      // 2. Update Risk Gauge
       const score = assessment.threat_score !== undefined ? assessment.threat_score : 85;
       const scoreEl = document.getElementById('threatScoreVal');
       const tierEl = document.getElementById('riskTierVal');
@@ -303,18 +354,15 @@
         tierEl.className = "text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
       }
       
-      // 3. Update GeoIP & Infrastructure Telemetry
       const loc = origin.city && origin.country ? `${origin.city}, ${origin.country}` : (origin.country || "Frankfurt, Germany");
       document.getElementById('originLocationVal').innerHTML = `<i class="fa-solid fa-location-dot text-sky-400"></i> ${loc}`;
       document.getElementById('originIpVal').innerText = origin.ip || "185.220.101.5";
       document.getElementById('nodeTypeVal').innerText = origin.node_type || "Data Center / Tor Relay Node";
 
-      // 4. Update DNS Authentication & Legal Seal
       document.getElementById('spfVal').innerText = dnsAuth.spf || "SoftFail (~all)";
       document.getElementById('dmarcVal').innerText = dnsAuth.dmarc || "p=none (Vulnerable)";
       document.getElementById('hashVal').innerText = metadata.evidence_sha256 || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
-      // 5. Render Detected Threat Factors
       const reasonsList = document.getElementById('reasonsList');
       reasonsList.innerHTML = '';
       const reasons = assessment.threat_reasons || [
@@ -329,7 +377,6 @@
         reasonsList.appendChild(li);
       });
 
-      // 6. Render Reverse MTA Hop Route
       const hopsContainer = document.getElementById('hopsContainer');
       hopsContainer.innerHTML = '';
       const hops = data.hops && data.hops.length > 0 ? data.hops : [
