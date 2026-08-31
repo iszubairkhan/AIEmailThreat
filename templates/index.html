@@ -243,9 +243,8 @@
   </main>
 
   <footer class="border-t border-slate-800 bg-slate-900/60 py-4 text-center text-xs text-slate-500">
-    TEAM NEXORA • Smart India Hackathon 2026 • AI-Powered Email Threat Detection &amp; Origin De-Anonymization
+    &copy; <span id="currentYear"></span> Team Nexora. All rights reserved.
   </footer>
-
   <!-- Dynamic SOC Alert Configuration Modal -->
   <div id="activationModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
@@ -313,6 +312,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('currentYear').innerText = new Date().getFullYear();      
       const urlParams = new URLSearchParams(window.location.search);
       const caseId = urlParams.get('case');
       const view = urlParams.get('view');
