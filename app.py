@@ -25,23 +25,16 @@ CASES_FILE = "cases_cache.json"
 CASES_DB = {}
 MONITORED_ACCOUNTS = {}
 
-# -------------------------------------------------------------
-# SAFE DISK PERSISTENCE ENGINE
-# -------------------------------------------------------------
-
 def load_cases_from_disk():
-    """Safely loads cached cases into memory on boot."""
     if os.path.exists(CASES_FILE):
         try:
             with open(CASES_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
-            print(f"Cache load notice: {e}")
+        except Exception:
             return {}
     return {}
 
 def save_case_record(case_id, analysis_data):
-    """Saves case record both in memory and to disk."""
     global CASES_DB
     CASES_DB[case_id] = analysis_data
     try:
@@ -50,7 +43,6 @@ def save_case_record(case_id, analysis_data):
     except Exception as e:
         print(f"Error persisting case {case_id}: {e}")
 
-# Initialize database on startup
 CASES_DB = load_cases_from_disk()
 
 BEC_URGENCY_PATTERNS = [
@@ -71,11 +63,10 @@ TRUSTED_ESP_DOMAINS = [
 ]
 
 # -------------------------------------------------------------
-# 1. GMAIL LABEL MANAGEMENT ENGINE
+# 1. GMAIL LABEL & DISPATCH ENGINE
 # -------------------------------------------------------------
 
 def get_or_create_soc_label(headers):
-    """Guarantees the SOC-SCANNED label exists in Gmail and returns its label ID."""
     try:
         res = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/labels", headers=headers, timeout=5).json()
         labels = res.get("labels", [])
@@ -99,7 +90,6 @@ def get_or_create_soc_label(headers):
         return None
 
 def apply_soc_label_to_message(headers, msg_id):
-    """Applies the SOC-SCANNED label to any message ID."""
     try:
         label_id = get_or_create_soc_label(headers)
         if label_id:
@@ -117,14 +107,12 @@ def apply_soc_label_to_message(headers, msg_id):
 # -------------------------------------------------------------
 
 def get_base_domain(domain_str: str) -> str:
-    """Extracts apex domain (e.g. email.openai.com -> openai.com)."""
     parts = domain_str.strip().lower().split('.')
     if len(parts) >= 2:
         return f"{parts[-2]}.{parts[-1]}"
     return domain_str.lower()
 
 def extract_email_body_text(msg):
-    """Recursively extracts full plaintext and HTML content from complex MIME messages."""
     text_content = []
     if msg.is_multipart():
         for part in msg.walk():
@@ -155,6 +143,9 @@ def get_ip_intelligence(ip_address: str):
             "ip": ip_address,
             "country": "Local Relay",
             "city": "Internal",
+            "lat": 0.0,
+            "lon": 0.0,
+            "maps_url": "https://maps.google.com",
             "isp": "Private Loopback",
             "org": "Internal",
             "asn": "AS0",
@@ -162,7 +153,7 @@ def get_ip_intelligence(ip_address: str):
             "node_type": "Internal / RFC-1918"
         }
     try:
-        url = f"http://ip-api.com/json/{ip_address}?fields=status,country,city,isp,org,as,hosting,proxy,query"
+        url = f"http://ip-api.com/json/{ip_address}?fields=status,country,city,lat,lon,isp,org,as,hosting,proxy,query"
         res = requests.get(url, timeout=2.5).json()
         if res.get("status") == "success":
             isp_org_str = f"{res.get('isp', '')} {res.get('org', '')} {res.get('as', '')}".lower()
@@ -170,10 +161,17 @@ def get_ip_intelligence(ip_address: str):
             is_trusted = any(p in isp_org_str for p in trusted_providers)
             is_vpn_dc = (res.get("hosting", False) or res.get("proxy", False) or any(k in isp_org_str for k in KNOWN_DATACENTER_ORGS)) and not is_trusted
             
+            lat = res.get("lat", 0.0)
+            lon = res.get("lon", 0.0)
+            maps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+
             return {
                 "ip": res.get("query"),
                 "country": res.get("country", "Unknown"),
                 "city": res.get("city", "Unknown"),
+                "lat": lat,
+                "lon": lon,
+                "maps_url": maps_url,
                 "isp": res.get("isp", "Unknown"),
                 "org": res.get("org", "Unknown"),
                 "asn": res.get("as", "Unknown"),
@@ -186,6 +184,9 @@ def get_ip_intelligence(ip_address: str):
         "ip": ip_address,
         "country": "Unknown",
         "city": "Unknown",
+        "lat": 0.0,
+        "lon": 0.0,
+        "maps_url": f"https://www.google.com/maps/search/?api=1&query={ip_address}",
         "isp": "Unknown",
         "org": "Unknown",
         "asn": "Unknown",
@@ -247,7 +248,6 @@ def analyze_email_forensics(raw_bytes: bytes):
     if discovered_ips:
         origin_geo = get_ip_intelligence(discovered_ips[-1])
 
-    # Resolving SPF & DMARC
     spf_status = "Not Configured / SoftFail"
     dmarc_status = "Missing DMARC Policy"
     resolver = dns.resolver.Resolver()
@@ -303,28 +303,23 @@ def analyze_email_forensics(raw_bytes: bytes):
     threat_score = 0
     threat_reasons = []
 
-    # 1. Domain Spoofing (+45%)
     if is_spoofed_sender:
         threat_score += 45
         threat_reasons.append(f"Domain Spoofing: 'From' header ({sender_domain}) does not match Return-Path ({return_path_domain}).")
 
-    # 2. Missing DMARC Policy on non-apex domains (+20%)
     if "Missing" in dmarc_status and sender_base not in ["google.com", "microsoft.com", "apple.com", "amazon.com", "github.com", "openai.com"]:
         threat_score += 20
         threat_reasons.append("Unenforced DMARC Policy: Domain allows inbound impersonation.")
 
-    # 3. Anonymized / Datacenter Sending Node (+25%)
     if origin_geo and origin_geo.get("is_anonymized") and not is_trusted_esp:
         threat_score += 25
         threat_reasons.append(f"Anonymized Sending Node: Origin IP belongs to {origin_geo['isp']} (Datacenter / VPN).")
 
-    # 4. Social Engineering Urgency / BEC Language (+35% or +20%)
     if found_cues:
         nlp_penalty = 35 if len(found_cues) >= 2 else 20
         threat_score += nlp_penalty
         threat_reasons.append(f"Social Engineering Threat Cues: Detected keywords ({', '.join(set(found_cues))}).")
 
-    # 5. Embedded Links with High-Pressure Cues (+25%)
     if extracted_urls and found_cues:
         threat_score += 25
         threat_reasons.append(f"Suspicious Embedded URLs: Discovered {len(extracted_urls)} link(s) combined with high-pressure cues.")
@@ -355,7 +350,7 @@ def analyze_email_forensics(raw_bytes: bytes):
             "spf": spf_status,
             "dmarc": dmarc_status
         },
-        "origin_investigation": origin_geo or {"ip": "127.0.0.1", "country": "Unknown", "city": "Unknown", "isp": "Unknown", "node_type": "Unknown"},
+        "origin_investigation": origin_geo or {"ip": "127.0.0.1", "country": "Unknown", "city": "Unknown", "lat": 0.0, "lon": 0.0, "maps_url": "https://maps.google.com", "isp": "Unknown", "node_type": "Unknown"},
         "hops": hops,
         "urls": extracted_urls,
         "social_engineering_cues": list(set(found_cues))
@@ -527,6 +522,52 @@ def auth_callback():
     session['inbox_list'] = inbox_list
     return redirect("/?view=inbox_select")
 
+@app.route('/api/refresh_inbox')
+def refresh_inbox():
+    access_token = session.get('access_token')
+    if not access_token:
+        return jsonify({"error": "No active session"}), 401
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    try:
+        list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
+        list_res = requests.get(list_url, headers=headers, timeout=10).json()
+        messages_summary = list_res.get("messages", [])
+
+        inbox_list = []
+        for m in messages_summary:
+            try:
+                msg_meta = requests.get(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
+                    headers=headers,
+                    timeout=3
+                ).json()
+                
+                headers_list = msg_meta.get("payload", {}).get("headers", [])
+                subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "(No Subject)")
+                sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
+                date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
+                snippet = msg_meta.get("snippet", "")
+
+                is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
+
+                inbox_list.append({
+                    "id": m["id"],
+                    "subject": subject,
+                    "from": sender,
+                    "date": date_str,
+                    "snippet": snippet,
+                    "threat_preview": "CRITICAL" if is_suspicious else "CLEAN"
+                })
+            except Exception:
+                continue
+
+        session['inbox_list'] = inbox_list
+        return jsonify({"status": "success", "inbox": inbox_list})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/scan_inbox_message/<msg_id>')
 def scan_inbox_message(msg_id):
     access_token = session.get('access_token')
@@ -631,56 +672,6 @@ def get_case(case_id):
     if case_id == "c66930bf":
         return scan_demo()
     return jsonify({"error": "Case not found"}), 404
-
-@app.route('/api/refresh_inbox')
-def refresh_inbox():
-    access_token = session.get('access_token')
-    if not access_token:
-        return jsonify({"error": "No active session"}), 401
-
-    headers = {"Authorization": f"Bearer {access_token}"}
-    
-    try:
-        list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
-        list_res = requests.get(list_url, headers=headers, timeout=10).json()
-        messages_summary = list_res.get("messages", [])
-
-        inbox_list = []
-        for m in messages_summary:
-            try:
-                msg_meta = requests.get(
-                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
-                    headers=headers,
-                    timeout=3
-                ).json()
-                
-                headers_list = msg_meta.get("payload", {}).get("headers", [])
-                subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "(No Subject)")
-                sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
-                date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
-                snippet = msg_meta.get("snippet", "")
-
-                is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
-
-                inbox_list.append({
-                    "id": m["id"],
-                    "subject": subject,
-                    "from": sender,
-                    "date": date_str,
-                    "snippet": snippet,
-                    "threat_preview": "CRITICAL" if is_suspicious else "CLEAN"
-                })
-            except Exception:
-                continue
-
-        session['inbox_list'] = inbox_list
-        return jsonify({"status": "success", "inbox": inbox_list})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# -------------------------------------------------------------
-# 5. ENTRY POINT
-# -------------------------------------------------------------
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
