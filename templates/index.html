@@ -158,11 +158,11 @@
           <span class="text-[10px] text-slate-500">Multi-Factor Heuristic Engine</span>
         </div>
 
-        <!-- Origin Location -->
+        <!-- Origin Location with Direct Maps Tracker -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
           <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Origin Location</span>
           <div class="my-1.5">
-            <div id="originLocationVal" class="text-xs sm:text-sm font-bold text-white flex items-center justify-between gap-1">
+            <div id="originLocationVal" class="text-xs sm:text-sm font-bold text-white flex items-center justify-between gap-1 w-full">
               <span class="truncate"><i class="fa-solid fa-location-dot text-sky-400"></i> Resolving...</span>
             </div>
             <div id="originIpVal" class="text-[11px] font-mono text-slate-400 mt-0.5 truncate">0.0.0.0</div>
@@ -278,10 +278,16 @@
       </div>
 
       <div class="space-y-3 text-xs text-slate-300">
-        <div>
-          <label class="block font-bold text-slate-200 mb-1">SOC / Admin Alert Email:</label>
-          <input type="email" id="customSocEmail" value="" placeholder="soc-alerts@yourcompany.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
-          <span class="text-[11px] text-slate-500">All suspicious threat incidents with Section 65B hash seals will be dispatched to this address.</span>
+        <div class="space-y-2">
+          <label class="block font-bold text-slate-200">Select Alert Target:</label>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="useConnectedMail()" class="px-3 py-1.5 rounded-lg bg-sky-950 border border-sky-700/60 text-sky-300 hover:bg-sky-900 text-[11px] font-semibold transition flex items-center gap-1">
+              <i class="fa-solid fa-envelope-circle-check text-sky-400"></i> Use Connected Gmail
+            </button>
+            <span class="text-slate-500 text-[11px]">or specify SOC desk email:</span>
+          </div>
+          <input type="email" id="customSocEmail" value="" placeholder="soc-desk@yourorganization.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
+          <span class="text-[11px] text-slate-500 block">Suspicious threat incidents with Section 65B forensic hash seals will be dispatched to this address.</span>
         </div>
 
         <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
@@ -289,14 +295,14 @@
             <i class="fa-solid fa-check-circle"></i> Built-in Automated Background Daemon
           </span>
           <p class="text-slate-400 text-[11px]">
-            No manual scripts or client installations required. The platform scans background mailboxes automatically every 60 seconds.
+            No manual client scripts required. The server monitors background mailboxes continuously and triggers email notifications for high-risk threats.
           </p>
         </div>
       </div>
 
       <div class="pt-2 flex justify-between items-center border-t border-slate-800">
         <button onclick="saveSocEmail()" id="saveSocBtn" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition flex items-center gap-1.5">
-          <i class="fa-solid fa-floppy-disk"></i> Save Alert Email
+          <i class="fa-solid fa-floppy-disk"></i> Save Alert Configuration
         </button>
         <button onclick="closeActivationModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-3.5 py-2 rounded-lg transition">
           Close
@@ -305,7 +311,7 @@
     </div>
   </div>
 
-  <!-- JavaScript -->
+  <!-- JavaScript Handlers -->
   <script>
     let globalInboxData = [];
 
@@ -329,19 +335,36 @@
       m.classList.remove('flex');
     }
 
+    function useConnectedMail() {
+      document.getElementById('customSocEmail').value = "CONNECTED_MAILBOX";
+    }
+
     function saveSocEmail() {
-      const emailVal = document.getElementById('customSocEmail').value.trim();
+      let emailVal = document.getElementById('customSocEmail').value.trim();
       if (!emailVal) {
-        alert("Please enter a valid email address.");
-        return;
+        emailVal = "CONNECTED_MAILBOX";
       }
-      localStorage.setItem('soc_alert_email', emailVal);
-      const btn = document.getElementById('saveSocBtn');
-      btn.innerHTML = '<i class="fa-solid fa-check text-emerald-300"></i> Saved!';
-      setTimeout(() => {
-        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Alert Email';
+
+      fetch('/api/set_soc_alert_email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ soc_email: emailVal === "CONNECTED_MAILBOX" ? "" : emailVal })
+      })
+      .then(res => res.json())
+      .then(data => {
+        localStorage.setItem('soc_alert_email', emailVal);
+        const btn = document.getElementById('saveSocBtn');
+        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-300"></i> Saved!';
+        setTimeout(() => {
+          btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Alert Configuration';
+          closeActivationModal();
+        }, 1000);
+      })
+      .catch(err => {
+        console.error(err);
+        localStorage.setItem('soc_alert_email', emailVal);
         closeActivationModal();
-      }, 1000);
+      });
     }
 
     window.addEventListener('DOMContentLoaded', () => {
