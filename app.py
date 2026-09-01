@@ -632,6 +632,52 @@ def get_case(case_id):
         return scan_demo()
     return jsonify({"error": "Case not found"}), 404
 
+@app.route('/api/refresh_inbox')
+def refresh_inbox():
+    access_token = session.get('access_token')
+    if not access_token:
+        return jsonify({"error": "No active session"}), 401
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    try:
+        list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
+        list_res = requests.get(list_url, headers=headers, timeout=10).json()
+        messages_summary = list_res.get("messages", [])
+
+        inbox_list = []
+        for m in messages_summary:
+            try:
+                msg_meta = requests.get(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
+                    headers=headers,
+                    timeout=3
+                ).json()
+                
+                headers_list = msg_meta.get("payload", {}).get("headers", [])
+                subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "(No Subject)")
+                sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
+                date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
+                snippet = msg_meta.get("snippet", "")
+
+                is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
+
+                inbox_list.append({
+                    "id": m["id"],
+                    "subject": subject,
+                    "from": sender,
+                    "date": date_str,
+                    "snippet": snippet,
+                    "threat_preview": "CRITICAL" if is_suspicious else "CLEAN"
+                })
+            except Exception:
+                continue
+
+        session['inbox_list'] = inbox_list
+        return jsonify({"status": "success", "inbox": inbox_list})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # -------------------------------------------------------------
 # 5. ENTRY POINT
 # -------------------------------------------------------------
