@@ -162,8 +162,8 @@
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
           <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Origin Location</span>
           <div class="my-1.5">
-            <div id="originLocationVal" class="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 truncate">
-              <i class="fa-solid fa-location-dot text-sky-400"></i> Resolving...
+            <div id="originLocationVal" class="text-xs sm:text-sm font-bold text-white flex items-center justify-between gap-1">
+              <span class="truncate"><i class="fa-solid fa-location-dot text-sky-400"></i> Resolving...</span>
             </div>
             <div id="originIpVal" class="text-[11px] font-mono text-slate-400 mt-0.5 truncate">0.0.0.0</div>
           </div>
@@ -544,7 +544,16 @@
       }
       
       const loc = origin.city && origin.country ? `${origin.city}, ${origin.country}` : (origin.country || "Corporate Mail Exchange");
-      document.getElementById('originLocationVal').innerHTML = `<i class="fa-solid fa-location-dot text-sky-400"></i> ${loc}`;
+      const mapsLink = origin.maps_url || `https://www.google.com/maps/search/?api=1&query=${origin.ip || '0.0.0.0'}`;
+
+      document.getElementById('originLocationVal').innerHTML = `
+        <div class="flex items-center justify-between gap-1 w-full">
+          <span class="truncate"><i class="fa-solid fa-location-dot text-sky-400"></i> ${loc}</span>
+          <a href="${mapsLink}" target="_blank" class="px-1.5 py-0.5 bg-sky-500/20 hover:bg-sky-500/40 text-sky-300 border border-sky-500/30 rounded text-[9px] font-bold flex items-center gap-1 transition flex-shrink-0">
+            <i class="fa-solid fa-map-location-dot"></i> Maps
+          </a>
+        </div>
+      `;
       document.getElementById('originIpVal').innerText = origin.ip || "127.0.0.1";
       document.getElementById('nodeTypeVal').innerText = origin.node_type || "Corporate Cloud Mailbox";
 
