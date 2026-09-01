@@ -9,8 +9,30 @@ import ipaddress
 import threading
 import time
 import requests
+import json
 import dns.resolver
 from flask import Flask, render_template, request, jsonify, redirect, session
+
+CASES_FILE = "cases_cache.json"
+
+def load_cases_db():
+    if os.path.exists(CASES_FILE):
+        try:
+            with open(CASES_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_case_to_db(case_id, analysis_data):
+    CASES_DB[case_id] = analysis_data
+    try:
+        with open(CASES_FILE, "w") as f:
+            json.dump(CASES_DB, f)
+    except Exception as e:
+        print(f"Error saving case cache: {e}")
+
+CASES_DB = load_cases_db()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sih_nexora_sentinel_secret_2026")
@@ -595,11 +617,15 @@ def scan_demo():
 
 @app.route('/api/get_case/<case_id>', methods=['GET'])
 def get_case(case_id):
+    if case_id not in CASES_DB:
+        global CASES_DB
+        CASES_DB = load_cases_db()
+
     if case_id in CASES_DB:
         return jsonify(CASES_DB[case_id])
     if case_id == "c66930bf":
         return scan_demo()
-    return jsonify({"error": "Case not found"}), 404
+    return jsonify({"error": "Case expired or not found"}), 404
 
 # -------------------------------------------------------------
 # 5. ENTRY POINT
