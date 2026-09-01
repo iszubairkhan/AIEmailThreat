@@ -98,7 +98,7 @@ def load_sent_alerts():
 
 def record_alert_dispatched(identifier):
     global SENT_ALERTS
-    SENT_ALERTS.add(identifier)
+    SENT_ALERTS.add(str(identifier))
     try:
         with open(ALERTS_FILE, "w", encoding="utf-8") as f:
             json.dump(list(SENT_ALERTS), f)
@@ -169,9 +169,13 @@ def apply_soc_label_to_message(headers, msg_id):
 
 def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique_msg_id):
     global SENT_ALERTS
-    if not recipient_email or unique_msg_id in SENT_ALERTS:
+    unique_key = str(unique_msg_id)
+    if not recipient_email or unique_key in SENT_ALERTS:
         return
     
+    # Mark as sent immediately to avoid race condition
+    record_alert_dispatched(unique_key)
+
     try:
         meta = analysis.get("metadata", {})
         threat = analysis.get("threat_assessment", {})
@@ -208,8 +212,7 @@ Inspect full network hops and evidence telemetry on the live triage hub.
             json={"raw": raw_msg},
             timeout=10
         )
-        record_alert_dispatched(unique_msg_id)
-        print(f"✅ Dispatched single SOC alert email to {recipient_email} for msg {unique_msg_id}")
+        print(f"✅ Single SOC alert email successfully dispatched to {recipient_email} for msg {unique_key}")
     except Exception as e:
         print(f"Failed to dispatch SOC alert: {e}")
 
@@ -501,13 +504,17 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
             
-            # Strict Exclusion Query: Unread + Not Self + Not Labelled + No Alert in Subject
+            # Query filters out self-sent emails, already scanned emails, and alerts
             list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread%20-from:me%20-label:SOC-SCANNED%20-subject:"SOC ALERT"&maxResults=5'
             res = requests.get(list_url, headers=headers, timeout=10).json()
             messages = res.get("messages", [])
 
             for m in messages:
                 msg_id = m['id']
+                if msg_id in SENT_ALERTS:
+                    apply_soc_label_to_message(headers, msg_id)
+                    continue
+
                 raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw", headers=headers, timeout=10).json()
                 raw_base64 = raw_res.get("raw", "")
                 if not raw_base64:
@@ -517,24 +524,27 @@ def background_threat_monitor():
                 analysis = analyze_email_forensics(raw_bytes)
                 subject = analysis.get("metadata", {}).get("subject", "")
                 
-                # Double guard against evaluating alert emails
+                # Double guard against alert emails
                 if "[SOC ALERT]" in subject or "Threat Detected (" in subject:
                     apply_soc_label_to_message(headers, msg_id)
+                    record_alert_dispatched(msg_id)
                     continue
 
                 threat_score = analysis['threat_assessment']['threat_score']
+
+                # Mark as scanned in Gmail first
+                apply_soc_label_to_message(headers, msg_id)
 
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
                     
                     target_alert_email = configured_soc_email or email_addr
-                    # Send alert only once per unique incoming message ID
-                    if msg_id not in SENT_ALERTS:
-                        print(f"🚨 [SINGLE ALERT DISPATCH] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
-                        dispatch_soc_alert_email(headers, target_alert_email, case_id, analysis, msg_id)
+                    print(f"🚨 [SINGLE ALERT DISPATCH] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
+                    dispatch_soc_alert_email(headers, target_alert_email, case_id, analysis, msg_id)
+                else:
+                    record_alert_dispatched(msg_id)
 
-                apply_soc_label_to_message(headers, msg_id)
         except Exception as e:
             print(f"Monitor error for {email_addr}: {e}")
 
@@ -617,7 +627,7 @@ def auth_callback():
     if refresh_token:
         save_monitored_account(user_email, refresh_token)
 
-    list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
+    list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox%20-subject:"SOC ALERT"'
     list_res = requests.get(list_url, headers=headers, timeout=10).json()
     messages_summary = list_res.get("messages", [])
 
@@ -638,6 +648,10 @@ def auth_callback():
             sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
             date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
             snippet = msg_meta.get("snippet", "")
+
+            # Skip alert emails in triage view
+            if "[SOC ALERT]" in subject:
+                continue
 
             is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
 
@@ -663,7 +677,7 @@ def refresh_inbox():
 
     headers = {"Authorization": f"Bearer {access_token}"}
     try:
-        list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
+        list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox%20-subject:"SOC ALERT"'
         list_res = requests.get(list_url, headers=headers, timeout=10).json()
         messages_summary = list_res.get("messages", [])
 
@@ -681,6 +695,9 @@ def refresh_inbox():
                 sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
                 date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
                 snippet = msg_meta.get("snippet", "")
+
+                if "[SOC ALERT]" in subject:
+                    continue
 
                 is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
 
@@ -720,17 +737,14 @@ def scan_inbox_message(msg_id):
     raw_base64 = msg_res.get("raw", "")
     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
 
+    # Apply tag and mark as read
     apply_soc_label_to_message(headers, msg_id)
+    record_alert_dispatched(msg_id)
 
+    # Perform forensic parsing without re-dispatching alert emails
     analysis = analyze_email_forensics(raw_bytes)
     case_id = str(uuid.uuid4())[:8]
     save_case_record(case_id, analysis)
-
-    if analysis['threat_assessment']['threat_score'] >= 40:
-        settings = load_settings()
-        target = settings.get("soc_email") or session.get('user_email')
-        if target and msg_id not in SENT_ALERTS:
-            dispatch_soc_alert_email(headers, target, case_id, analysis, msg_id)
 
     return redirect(f"/?case={case_id}")
 
