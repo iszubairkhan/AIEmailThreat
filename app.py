@@ -25,12 +25,14 @@ REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 CASES_FILE = "cases_cache.json"
 ACCOUNTS_FILE = "accounts_cache.json"
 SETTINGS_FILE = "settings_cache.json"
+ALERTS_FILE = "sent_alerts_cache.json"
 
 CASES_DB = {}
 MONITORED_ACCOUNTS = {}
+SENT_ALERTS = set()
 
 # -------------------------------------------------------------
-# DISK PERSISTENCE ENGINE (ACCOUNTS, CASES & CONFIG)
+# DISK PERSISTENCE ENGINE (ACCOUNTS, CASES & ALERTS)
 # -------------------------------------------------------------
 
 def load_cases_from_disk():
@@ -85,9 +87,28 @@ def save_settings(settings_dict):
     except Exception as e:
         print(f"Error saving settings: {e}")
 
-# Initialize in-memory state from disk
+def load_sent_alerts():
+    if os.path.exists(ALERTS_FILE):
+        try:
+            with open(ALERTS_FILE, "r", encoding="utf-8") as f:
+                return set(json.load(f))
+        except Exception:
+            return set()
+    return set()
+
+def record_alert_dispatched(identifier):
+    global SENT_ALERTS
+    SENT_ALERTS.add(identifier)
+    try:
+        with open(ALERTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(SENT_ALERTS), f)
+    except Exception as e:
+        print(f"Error saving alert record: {e}")
+
+# Initialize state from disk
 CASES_DB = load_cases_from_disk()
 MONITORED_ACCOUNTS = load_monitored_accounts()
+SENT_ALERTS = load_sent_alerts()
 
 BEC_URGENCY_PATTERNS = [
     r"\b(urgent|immediate action|suspended within|account deactivated|act now)\b",
@@ -146,9 +167,11 @@ def apply_soc_label_to_message(headers, msg_id):
     except Exception as e:
         print(f"Error applying SOC label: {e}")
 
-def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis):
-    if not recipient_email:
+def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique_msg_id):
+    global SENT_ALERTS
+    if not recipient_email or unique_msg_id in SENT_ALERTS:
         return
+    
     try:
         meta = analysis.get("metadata", {})
         threat = analysis.get("threat_assessment", {})
@@ -185,7 +208,8 @@ Inspect full network hops and evidence telemetry on the live triage hub.
             json={"raw": raw_msg},
             timeout=10
         )
-        print(f"✅ Dispatched SOC alert email to {recipient_email}")
+        record_alert_dispatched(unique_msg_id)
+        print(f"✅ Dispatched single SOC alert email to {recipient_email} for msg {unique_msg_id}")
     except Exception as e:
         print(f"Failed to dispatch SOC alert: {e}")
 
@@ -444,7 +468,7 @@ def analyze_email_forensics(raw_bytes: bytes):
     }
 
 # -------------------------------------------------------------
-# 3. 24/7 BACKGROUND MONITORING WORKER
+# 3. 24/7 BACKGROUND MONITORING WORKER (SINGLE-DISPATCH ONLY)
 # -------------------------------------------------------------
 
 def refresh_google_token(refresh_token):
@@ -462,7 +486,7 @@ def refresh_google_token(refresh_token):
         return None
 
 def background_threat_monitor():
-    global MONITORED_ACCOUNTS
+    global MONITORED_ACCOUNTS, SENT_ALERTS
     if not MONITORED_ACCOUNTS:
         MONITORED_ACCOUNTS = load_monitored_accounts()
         
@@ -476,29 +500,41 @@ def background_threat_monitor():
                 continue
 
             headers = {"Authorization": f"Bearer {token}"}
-            list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=5"
+            
+            # Strict Exclusion Query: Unread + Not Self + Not Labelled + No Alert in Subject
+            list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread%20-from:me%20-label:SOC-SCANNED%20-subject:"SOC ALERT"&maxResults=5'
             res = requests.get(list_url, headers=headers, timeout=10).json()
             messages = res.get("messages", [])
 
             for m in messages:
-                raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=raw", headers=headers, timeout=10).json()
+                msg_id = m['id']
+                raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw", headers=headers, timeout=10).json()
                 raw_base64 = raw_res.get("raw", "")
                 if not raw_base64:
                     continue
                 raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
                 
                 analysis = analyze_email_forensics(raw_bytes)
+                subject = analysis.get("metadata", {}).get("subject", "")
+                
+                # Double guard against evaluating alert emails
+                if "[SOC ALERT]" in subject or "Threat Detected (" in subject:
+                    apply_soc_label_to_message(headers, msg_id)
+                    continue
+
                 threat_score = analysis['threat_assessment']['threat_score']
 
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
-                    print(f"🚨 [AUTO ALERT] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
                     
                     target_alert_email = configured_soc_email or email_addr
-                    dispatch_soc_alert_email(headers, target_alert_email, case_id, analysis)
+                    # Send alert only once per unique incoming message ID
+                    if msg_id not in SENT_ALERTS:
+                        print(f"🚨 [SINGLE ALERT DISPATCH] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
+                        dispatch_soc_alert_email(headers, target_alert_email, case_id, analysis, msg_id)
 
-                apply_soc_label_to_message(headers, m['id'])
+                apply_soc_label_to_message(headers, msg_id)
         except Exception as e:
             print(f"Monitor error for {email_addr}: {e}")
 
@@ -693,8 +729,8 @@ def scan_inbox_message(msg_id):
     if analysis['threat_assessment']['threat_score'] >= 40:
         settings = load_settings()
         target = settings.get("soc_email") or session.get('user_email')
-        if target:
-            dispatch_soc_alert_email(headers, target, case_id, analysis)
+        if target and msg_id not in SENT_ALERTS:
+            dispatch_soc_alert_email(headers, target, case_id, analysis, msg_id)
 
     return redirect(f"/?case={case_id}")
 
