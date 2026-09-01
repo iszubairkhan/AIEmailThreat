@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import uuid
 import base64
 import hashlib
@@ -9,30 +10,8 @@ import ipaddress
 import threading
 import time
 import requests
-import json
 import dns.resolver
 from flask import Flask, render_template, request, jsonify, redirect, session
-
-CASES_FILE = "cases_cache.json"
-
-def load_cases_db():
-    if os.path.exists(CASES_FILE):
-        try:
-            with open(CASES_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-def save_case_to_db(case_id, analysis_data):
-    CASES_DB[case_id] = analysis_data
-    try:
-        with open(CASES_FILE, "w") as f:
-            json.dump(CASES_DB, f)
-    except Exception as e:
-        print(f"Error saving case cache: {e}")
-
-CASES_DB = load_cases_db()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sih_nexora_sentinel_secret_2026")
@@ -42,8 +21,37 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
+CASES_FILE = "cases_cache.json"
 CASES_DB = {}
 MONITORED_ACCOUNTS = {}
+
+# -------------------------------------------------------------
+# SAFE DISK PERSISTENCE ENGINE
+# -------------------------------------------------------------
+
+def load_cases_from_disk():
+    """Safely loads cached cases into memory on boot."""
+    if os.path.exists(CASES_FILE):
+        try:
+            with open(CASES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Cache load notice: {e}")
+            return {}
+    return {}
+
+def save_case_record(case_id, analysis_data):
+    """Saves case record both in memory and to disk."""
+    global CASES_DB
+    CASES_DB[case_id] = analysis_data
+    try:
+        with open(CASES_FILE, "w", encoding="utf-8") as f:
+            json.dump(CASES_DB, f)
+    except Exception as e:
+        print(f"Error persisting case {case_id}: {e}")
+
+# Initialize database on startup
+CASES_DB = load_cases_from_disk()
 
 BEC_URGENCY_PATTERNS = [
     r"\b(urgent|immediate action|suspended within|account deactivated|act now)\b",
@@ -281,7 +289,6 @@ def analyze_email_forensics(raw_bytes: bytes):
             except Exception:
                 pass
 
-    # Extract clean plaintext
     body_content = extract_email_body_text(msg)
     full_text_to_scan = f"{subject}\n{body_content}"
     
@@ -296,7 +303,7 @@ def analyze_email_forensics(raw_bytes: bytes):
     threat_score = 0
     threat_reasons = []
 
-    # 1. Critical Domain Spoofing (+45%)
+    # 1. Domain Spoofing (+45%)
     if is_spoofed_sender:
         threat_score += 45
         threat_reasons.append(f"Domain Spoofing: 'From' header ({sender_domain}) does not match Return-Path ({return_path_domain}).")
@@ -396,7 +403,7 @@ def background_threat_monitor():
 
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
-                    CASES_DB[case_id] = analysis
+                    save_case_record(case_id, analysis)
                     print(f"🚨 [AUTO ALERT] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
 
                 apply_soc_label_to_message(headers, m['id'])
@@ -468,7 +475,6 @@ def auth_callback():
     session['access_token'] = access_token
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    # Ensure label exists right away on initial login
     get_or_create_soc_label(headers)
 
     user_email = "connected_user"
@@ -534,12 +540,11 @@ def scan_inbox_message(msg_id):
     raw_base64 = msg_res.get("raw", "")
     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
 
-    # Apply SOC label to Gmail immediately on audit
     apply_soc_label_to_message(headers, msg_id)
 
     analysis = analyze_email_forensics(raw_bytes)
     case_id = str(uuid.uuid4())[:8]
-    CASES_DB[case_id] = analysis
+    save_case_record(case_id, analysis)
 
     return redirect(f"/?case={case_id}")
 
@@ -584,7 +589,7 @@ def scan_raw():
     result = analyze_email_forensics(raw_content)
     
     case_id = str(uuid.uuid4())[:8]
-    CASES_DB[case_id] = result
+    save_case_record(case_id, result)
     
     result['case_id'] = case_id
     result['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
@@ -610,22 +615,22 @@ def scan_demo():
     )
     analysis = analyze_email_forensics(sample_payload)
     case_id = "c66930bf"
-    CASES_DB[case_id] = analysis
+    save_case_record(case_id, analysis)
     analysis['case_id'] = case_id
     analysis['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
     return jsonify(analysis)
 
 @app.route('/api/get_case/<case_id>', methods=['GET'])
 def get_case(case_id):
+    global CASES_DB
     if case_id not in CASES_DB:
-        global CASES_DB
-        CASES_DB = load_cases_db()
+        CASES_DB = load_cases_from_disk()
 
     if case_id in CASES_DB:
         return jsonify(CASES_DB[case_id])
     if case_id == "c66930bf":
         return scan_demo()
-    return jsonify({"error": "Case expired or not found"}), 404
+    return jsonify({"error": "Case not found"}), 404
 
 # -------------------------------------------------------------
 # 5. ENTRY POINT
