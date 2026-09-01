@@ -23,11 +23,9 @@
       
       <!-- Brand & Title -->
       <div class="flex items-center gap-3">
-    
-     <div class="bg-slate-900 border border-slate-800 p-1 rounded-xl shadow-inner flex-shrink-0 flex items-center justify-center w-10 h-10 overflow-hidden">
-        <img src="https://raw.githubusercontent.com/iszubairkhan/AIEmailThreat/main/Nexora%20logo.png" alt="Team Logo" class="w-full h-full object-contain rounded-lg">
-    </div>
-
+        <div class="bg-slate-900 border border-slate-800 p-1 rounded-xl shadow-inner flex-shrink-0 flex items-center justify-center w-10 h-10 overflow-hidden">
+          <img src="https://raw.githubusercontent.com/iszubairkhan/AIEmailThreat/main/Nexora%20logo.png" alt="Team Logo" class="w-full h-full object-contain rounded-lg">
+        </div>
         <div>
           <h1 class="text-sm sm:text-base font-black tracking-wide text-white flex items-center gap-1.5 flex-wrap">
             AI EMAIL THREAT SENTINEL
@@ -88,13 +86,16 @@
       <!-- Session Bar -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-slate-950 p-3 rounded-xl border border-slate-800">
         <div class="flex items-center gap-2 text-xs text-slate-300 font-semibold">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span> Active 24/7 Mailbox Connected
+          <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 animate-pulse-slow"></span> Active 24/7 Mailbox Connected
         </div>
-        <div class="flex items-center gap-2 w-full sm:w-auto">
-          <button onclick="cleanupSocLabels()" id="cleanLabelBtn" class="flex-1 sm:flex-none text-center bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-slate-700 transition">
+        <div class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+          <button onclick="refreshInboxFeed()" id="refreshInboxBtn" class="flex-1 sm:flex-none text-center bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-sky-500/30 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+            <i class="fa-solid fa-rotate-right" id="refreshIcon"></i> Refresh Inbox
+          </button>
+          <button onclick="cleanupSocLabels()" id="cleanLabelBtn" class="flex-1 sm:flex-none text-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-amber-500/30 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
             <i class="fa-solid fa-broom text-amber-400"></i> Clear Labels
           </button>
-          <a href="/auth/logout" class="flex-1 sm:flex-none text-center bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-rose-500/30 transition">
+          <a href="/auth/logout" class="flex-1 sm:flex-none text-center bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-[11px] font-bold px-3 py-1.5 rounded-lg border border-rose-500/30 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
             <i class="fa-solid fa-right-from-bracket"></i> Disconnect
           </a>
         </div>
@@ -129,6 +130,14 @@
     <!-- Forensic Dashboard -->
     <div id="resultsSection" class="hidden space-y-4 sm:space-y-6">
       
+      <!-- Back Navigation Header -->
+      <div id="backToInboxContainer" class="flex items-center justify-between">
+        <a href="/?view=inbox_select" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-sky-400 hover:text-white text-xs font-bold transition shadow-lg">
+          <i class="fa-solid fa-arrow-left"></i> &larr; Back to Mailbox Triage
+        </a>
+        <span class="text-[11px] text-slate-500 font-mono">FORENSIC CASE ID: <span id="activeCaseBadge" class="text-slate-300 font-bold">#LIVE</span></span>
+      </div>
+
       <!-- Metadata Strip -->
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 text-[11px] font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-400">
         <div class="truncate"><span class="text-slate-500 font-sans font-bold">SUBJECT:</span> <span id="metaSubject" class="text-slate-200">Loading...</span></div>
@@ -351,6 +360,7 @@
     });
 
     function loadInboxSelector() {
+      document.getElementById('resultsSection').classList.add('hidden');
       document.getElementById('inboxSelectionSection').classList.remove('hidden');
       document.getElementById('inboxSelectionSection').scrollIntoView({ behavior: 'smooth' });
 
@@ -363,6 +373,32 @@
         .catch(err => {
           console.error(err);
           document.getElementById('inboxItemsList').innerHTML = '<p class="text-rose-400 text-xs py-4 text-center">Failed to load mailbox messages.</p>';
+        });
+    }
+
+    function refreshInboxFeed() {
+      const icon = document.getElementById('refreshIcon');
+      const btn = document.getElementById('refreshInboxBtn');
+      if (icon) icon.classList.add('fa-spin');
+      if (btn) btn.disabled = true;
+
+      fetch('/api/refresh_inbox')
+        .then(res => res.json())
+        .then(data => {
+          if (icon) icon.classList.remove('fa-spin');
+          if (btn) btn.disabled = false;
+          if (data.status === 'success' && data.inbox) {
+            globalInboxData = data.inbox;
+            renderFilteredInbox(globalInboxData);
+          } else {
+            alert("Refresh Notice: " + (data.error || "No new items found."));
+          }
+        })
+        .catch(err => {
+          if (icon) icon.classList.remove('fa-spin');
+          if (btn) btn.disabled = false;
+          console.error(err);
+          alert("Unable to fetch latest emails from server.");
         });
     }
 
@@ -446,52 +482,55 @@
     }
 
     function fetchCaseData(caseId) {
-  const btn = document.getElementById('demoBtn');
-  if (btn) {
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
-    btn.disabled = true;
-  }
-
-  fetch(`/api/get_case/${caseId}`)
-    .then(res => {
-      if (!res.ok) {
-        throw new Error(`Case ${caseId} not found`);
-      }
-      return res.json();
-    })
-    .then(data => {
-      renderDashboard(data);
+      const btn = document.getElementById('demoBtn');
       if (btn) {
-        btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
-        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
+        btn.disabled = true;
       }
-    })
-    .catch(err => {
-      console.error(err);
-      if (btn) {
-        btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
-        btn.disabled = false;
-      }
-      alert("Could not load case data. Please re-audit the email directly from the Mailbox Triage Hub.");
-    });
-}
 
-    function renderDashboard(data) {
+      fetch(`/api/get_case/${caseId}`)
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`Case ${caseId} not found`);
+          }
+          return res.json();
+        })
+        .then(data => {
+          renderDashboard(data, caseId);
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
+            btn.disabled = false;
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
+            btn.disabled = false;
+          }
+          alert("Could not load case data. Please re-audit the email directly from the Mailbox Triage Hub.");
+        });
+    }
+
+    function renderDashboard(data, caseId) {
       const assessment = data.threat_assessment || {};
       const metadata = data.metadata || {};
       const origin = data.origin_investigation || {};
       const dnsAuth = data.dns_authentication || {};
 
+      const caseBadge = document.getElementById('activeCaseBadge');
+      if (caseBadge) caseBadge.innerText = `#${caseId || 'LIVE'}`;
+
       document.getElementById('metaSubject').innerText = metadata.subject || "(No Subject)";
       document.getElementById('metaFrom').innerText = metadata.from || "Unknown";
       document.getElementById('metaReturnPath').innerText = metadata.return_path || "N/A";
 
-      const score = assessment.threat_score !== undefined ? assessment.threat_score : 85;
+      const score = assessment.threat_score !== undefined ? assessment.threat_score : 0;
       const scoreEl = document.getElementById('threatScoreVal');
       const tierEl = document.getElementById('riskTierVal');
       
       scoreEl.innerText = `${score}%`;
-      tierEl.innerText = assessment.risk_tier || "Critical Risk";
+      tierEl.innerText = assessment.risk_tier || (score >= 70 ? "Critical Risk" : (score >= 40 ? "Elevated Risk" : "Clean / Verified"));
 
       if (score >= 70) {
         scoreEl.className = "text-3xl sm:text-4xl font-black text-rose-500";
@@ -504,32 +543,30 @@
         tierEl.className = "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
       }
       
-      const loc = origin.city && origin.country ? `${origin.city}, ${origin.country}` : (origin.country || "Frankfurt, Germany");
+      const loc = origin.city && origin.country ? `${origin.city}, ${origin.country}` : (origin.country || "Corporate Mail Exchange");
       document.getElementById('originLocationVal').innerHTML = `<i class="fa-solid fa-location-dot text-sky-400"></i> ${loc}`;
-      document.getElementById('originIpVal').innerText = origin.ip || "185.220.101.5";
-      document.getElementById('nodeTypeVal').innerText = origin.node_type || "Data Center Node";
+      document.getElementById('originIpVal').innerText = origin.ip || "127.0.0.1";
+      document.getElementById('nodeTypeVal').innerText = origin.node_type || "Corporate Cloud Mailbox";
 
-      document.getElementById('spfVal').innerText = dnsAuth.spf || "SoftFail";
+      document.getElementById('spfVal').innerText = dnsAuth.spf || "Lookup Neutral";
       document.getElementById('dmarcVal').innerText = dnsAuth.dmarc || "p=none";
       document.getElementById('hashVal').innerText = metadata.evidence_sha256 || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
       const reasonsList = document.getElementById('reasonsList');
       reasonsList.innerHTML = '';
-      const reasons = assessment.threat_reasons || [
-        "Display header spoofing (From domain does not match Return-Path)",
-        "Unenforced DMARC policy allows unauthenticated spoofing"
-      ];
+      const reasons = assessment.threat_reasons || ["Verified Sender: Clean return-path alignment and authenticated corporate delivery."];
       reasons.forEach(r => {
+        const isCleanReason = r.toLowerCase().includes("verified") || r.toLowerCase().includes("clean");
         const li = document.createElement('li');
         li.className = "flex items-start gap-2 bg-slate-950/60 p-2 rounded-lg border border-slate-800 text-[11px]";
-        li.innerHTML = `<i class="fa-solid fa-xmark text-rose-400 mt-0.5 flex-shrink-0"></i> <span>${r}</span>`;
+        li.innerHTML = `<i class="fa-solid ${isCleanReason ? 'fa-check text-emerald-400' : 'fa-xmark text-rose-400'} mt-0.5 flex-shrink-0"></i> <span>${r}</span>`;
         reasonsList.appendChild(li);
       });
 
       const hopsContainer = document.getElementById('hopsContainer');
       hopsContainer.innerHTML = '';
       const hops = data.hops && data.hops.length > 0 ? data.hops : [
-        { hop_index: 1, raw: "Received: from 185.220.101.5 by mail.relay.org", extracted_ips: ["185.220.101.5"] }
+        { hop_index: 1, raw: "Received: from mx.google.com by relay gateway", extracted_ips: ["127.0.0.1"] }
       ];
 
       document.getElementById('hopCountVal').innerText = `${hops.length} Relays`;
@@ -538,22 +575,23 @@
         const isOrigin = idx === 0;
         const hopDiv = document.createElement('div');
         hopDiv.className = isOrigin 
-          ? "bg-rose-950/40 border border-rose-500/30 p-2.5 rounded-lg flex items-center justify-between gap-2"
+          ? (score >= 40 ? "bg-rose-950/40 border border-rose-500/30 p-2.5 rounded-lg flex items-center justify-between gap-2" : "bg-emerald-950/30 border border-emerald-500/30 p-2.5 rounded-lg flex items-center justify-between gap-2")
           : "bg-slate-950 p-2 rounded-lg border border-slate-800 flex items-center justify-between gap-2 text-slate-400";
         
         hopDiv.innerHTML = `
           <div class="truncate">
-            <span class="font-bold text-[10px] ${isOrigin ? 'text-rose-400' : 'text-slate-300'}">[HOP ${h.hop_index} - ${isOrigin ? 'ORIGIN' : 'RELAY'}]</span>
+            <span class="font-bold text-[10px] ${isOrigin ? (score >= 40 ? 'text-rose-400' : 'text-emerald-400') : 'text-slate-300'}">[HOP ${h.hop_index} - ${isOrigin ? 'ORIGIN' : 'RELAY'}]</span>
             <p class="${isOrigin ? 'text-slate-200' : 'text-slate-400'} text-[11px] truncate">${h.extracted_ips && h.extracted_ips.length > 0 ? h.extracted_ips[0] : 'Relay Gateway'}</p>
             <span class="text-[9px] text-slate-500 truncate block">${h.raw}</span>
           </div>
-          <span class="text-[9px] ${isOrigin ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'} px-1.5 py-0.5 rounded font-sans font-bold flex-shrink-0">
+          <span class="text-[9px] ${isOrigin ? (score >= 40 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300') : 'bg-slate-800 text-slate-400'} px-1.5 py-0.5 rounded font-sans font-bold flex-shrink-0">
             ${isOrigin ? 'Origin' : 'Hop'}
           </span>
         `;
         hopsContainer.appendChild(hopDiv);
       });
 
+      document.getElementById('inboxSelectionSection').classList.add('hidden');
       document.getElementById('resultsSection').classList.remove('hidden');
       document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
     }
