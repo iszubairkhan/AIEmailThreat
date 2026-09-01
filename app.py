@@ -23,9 +23,15 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "GOCSPX-C54rg-OMyW
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
 CASES_FILE = "cases_cache.json"
+ACCOUNTS_FILE = "accounts_cache.json"
+SETTINGS_FILE = "settings_cache.json"
+
 CASES_DB = {}
 MONITORED_ACCOUNTS = {}
-CONFIGURED_SOC_ALERT_EMAIL = ""
+
+# -------------------------------------------------------------
+# DISK PERSISTENCE ENGINE (ACCOUNTS, CASES & CONFIG)
+# -------------------------------------------------------------
 
 def load_cases_from_disk():
     if os.path.exists(CASES_FILE):
@@ -45,7 +51,43 @@ def save_case_record(case_id, analysis_data):
     except Exception as e:
         print(f"Error persisting case {case_id}: {e}")
 
+def load_monitored_accounts():
+    if os.path.exists(ACCOUNTS_FILE):
+        try:
+            with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_monitored_account(email_addr, refresh_token):
+    global MONITORED_ACCOUNTS
+    MONITORED_ACCOUNTS[email_addr] = {"refresh_token": refresh_token}
+    try:
+        with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(MONITORED_ACCOUNTS, f)
+    except Exception as e:
+        print(f"Error saving account {email_addr}: {e}")
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_settings(settings_dict):
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings_dict, f)
+    except Exception as e:
+        print(f"Error saving settings: {e}")
+
+# Initialize in-memory state from disk
 CASES_DB = load_cases_from_disk()
+MONITORED_ACCOUNTS = load_monitored_accounts()
 
 BEC_URGENCY_PATTERNS = [
     r"\b(urgent|immediate action|suspended within|account deactivated|act now)\b",
@@ -105,7 +147,6 @@ def apply_soc_label_to_message(headers, msg_id):
         print(f"Error applying SOC label: {e}")
 
 def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis):
-    """Sends a forensic SOC alert email via the connected Gmail API."""
     if not recipient_email:
         return
     try:
@@ -144,7 +185,7 @@ Inspect full network hops and evidence telemetry on the live triage hub.
             json={"raw": raw_msg},
             timeout=10
         )
-        print(f"✅ Dispatched SOC email alert to {recipient_email}")
+        print(f"✅ Dispatched SOC alert email to {recipient_email}")
     except Exception as e:
         print(f"Failed to dispatch SOC alert: {e}")
 
@@ -421,7 +462,13 @@ def refresh_google_token(refresh_token):
         return None
 
 def background_threat_monitor():
-    global CONFIGURED_SOC_ALERT_EMAIL
+    global MONITORED_ACCOUNTS
+    if not MONITORED_ACCOUNTS:
+        MONITORED_ACCOUNTS = load_monitored_accounts()
+        
+    settings = load_settings()
+    configured_soc_email = settings.get("soc_email", "")
+
     for email_addr, creds in list(MONITORED_ACCOUNTS.items()):
         try:
             token = refresh_google_token(creds['refresh_token'])
@@ -448,7 +495,7 @@ def background_threat_monitor():
                     save_case_record(case_id, analysis)
                     print(f"🚨 [AUTO ALERT] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
                     
-                    target_alert_email = CONFIGURED_SOC_ALERT_EMAIL or email_addr
+                    target_alert_email = configured_soc_email or email_addr
                     dispatch_soc_alert_email(headers, target_alert_email, case_id, analysis)
 
                 apply_soc_label_to_message(headers, m['id'])
@@ -532,9 +579,7 @@ def auth_callback():
     session['user_email'] = user_email
 
     if refresh_token:
-        MONITORED_ACCOUNTS[user_email] = {
-            "refresh_token": refresh_token
-        }
+        save_monitored_account(user_email, refresh_token)
 
     list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
     list_res = requests.get(list_url, headers=headers, timeout=10).json()
@@ -621,13 +666,10 @@ def refresh_inbox():
 
 @app.route('/api/set_soc_alert_email', methods=['POST'])
 def set_soc_alert_email():
-    global CONFIGURED_SOC_ALERT_EMAIL
     data = request.get_json(silent=True) or {}
     email_val = data.get("soc_email", "").strip()
-    if email_val:
-        CONFIGURED_SOC_ALERT_EMAIL = email_val
-        return jsonify({"status": "success", "soc_email": email_val})
-    return jsonify({"error": "Invalid email"}), 400
+    save_settings({"soc_email": email_val})
+    return jsonify({"status": "success", "soc_email": email_val})
 
 @app.route('/scan_inbox_message/<msg_id>')
 def scan_inbox_message(msg_id):
@@ -649,7 +691,8 @@ def scan_inbox_message(msg_id):
     save_case_record(case_id, analysis)
 
     if analysis['threat_assessment']['threat_score'] >= 40:
-        target = CONFIGURED_SOC_ALERT_EMAIL or session.get('user_email')
+        settings = load_settings()
+        target = settings.get("soc_email") or session.get('user_email')
         if target:
             dispatch_soc_alert_email(headers, target, case_id, analysis)
 
