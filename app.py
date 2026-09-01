@@ -6,6 +6,7 @@ import base64
 import hashlib
 import email
 from email import policy
+from email.mime.text import MIMEText
 import ipaddress
 import threading
 import time
@@ -24,6 +25,7 @@ REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 CASES_FILE = "cases_cache.json"
 CASES_DB = {}
 MONITORED_ACCOUNTS = {}
+CONFIGURED_SOC_ALERT_EMAIL = ""
 
 def load_cases_from_disk():
     if os.path.exists(CASES_FILE):
@@ -63,7 +65,7 @@ TRUSTED_ESP_DOMAINS = [
 ]
 
 # -------------------------------------------------------------
-# 1. GMAIL LABEL & DISPATCH ENGINE
+# 1. GMAIL API DISPATCH & LABEL ENGINE
 # -------------------------------------------------------------
 
 def get_or_create_soc_label(headers):
@@ -100,7 +102,51 @@ def apply_soc_label_to_message(headers, msg_id):
                 timeout=5
             )
     except Exception as e:
-        print(f"Error applying SOC label to message {msg_id}: {e}")
+        print(f"Error applying SOC label: {e}")
+
+def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis):
+    """Sends a forensic SOC alert email via the connected Gmail API."""
+    if not recipient_email:
+        return
+    try:
+        meta = analysis.get("metadata", {})
+        threat = analysis.get("threat_assessment", {})
+        origin = analysis.get("origin_investigation", {})
+        
+        subject = f"🚨 [SOC ALERT] Threat Detected ({threat.get('threat_score', 0)}%) - {meta.get('subject', 'Untitled')[:40]}"
+        body = f"""AI Email Threat Sentinel - Automated Incident Dispatch
+
+THREAT VERDICT: {threat.get('risk_tier', 'ELEVATED RISK')} ({threat.get('threat_score', 0)}%)
+CASE ID: #{case_id}
+LIVE DASHBOARD: https://aiemailthreat.onrender.com/?case={case_id}
+
+EVALUATION SUMMARY:
+- Subject: {meta.get('subject')}
+- Claimed Sender: {meta.get('from')}
+- Return-Path: {meta.get('return_path')}
+- Origin IP: {origin.get('ip')} ({origin.get('city', 'Unknown')}, {origin.get('country', 'Unknown')})
+- Node Type: {origin.get('node_type')}
+- Section 65B SHA-256 Seal: {meta.get('evidence_sha256')}
+
+DETECTED RISK INDICATORS:
+{chr(10).join(['* ' + r for r in threat.get('threat_reasons', [])])}
+
+Inspect full network hops and evidence telemetry on the live triage hub.
+"""
+        msg = MIMEText(body)
+        msg['to'] = recipient_email
+        msg['subject'] = subject
+        
+        raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+        requests.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers=headers,
+            json={"raw": raw_msg},
+            timeout=10
+        )
+        print(f"✅ Dispatched SOC email alert to {recipient_email}")
+    except Exception as e:
+        print(f"Failed to dispatch SOC alert: {e}")
 
 # -------------------------------------------------------------
 # 2. FORENSIC & IP INTELLIGENCE ENGINES
@@ -375,6 +421,7 @@ def refresh_google_token(refresh_token):
         return None
 
 def background_threat_monitor():
+    global CONFIGURED_SOC_ALERT_EMAIL
     for email_addr, creds in list(MONITORED_ACCOUNTS.items()):
         try:
             token = refresh_google_token(creds['refresh_token'])
@@ -400,6 +447,9 @@ def background_threat_monitor():
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
                     print(f"🚨 [AUTO ALERT] Threat Detected ({threat_score}%) for {email_addr} - Case: {case_id}")
+                    
+                    target_alert_email = CONFIGURED_SOC_ALERT_EMAIL or email_addr
+                    dispatch_soc_alert_email(headers, target_alert_email, case_id, analysis)
 
                 apply_soc_label_to_message(headers, m['id'])
         except Exception as e:
@@ -429,7 +479,7 @@ def auth_login():
     if not GOOGLE_CLIENT_ID:
         return "<h3 style='color:red;font-family:sans-serif;'>OAuth Error: GOOGLE_CLIENT_ID is not configured.</h3>", 400
         
-    scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.labels"
+    scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.labels https://www.googleapis.com/auth/gmail.send"
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={GOOGLE_CLIENT_ID}&"
@@ -478,6 +528,8 @@ def auth_callback():
         user_email = profile_res.get("emailAddress", "connected_user")
     except Exception:
         pass
+
+    session['user_email'] = user_email
 
     if refresh_token:
         MONITORED_ACCOUNTS[user_email] = {
@@ -529,7 +581,6 @@ def refresh_inbox():
         return jsonify({"error": "No active session"}), 401
 
     headers = {"Authorization": f"Bearer {access_token}"}
-    
     try:
         list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox"
         list_res = requests.get(list_url, headers=headers, timeout=10).json()
@@ -568,6 +619,16 @@ def refresh_inbox():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/set_soc_alert_email', methods=['POST'])
+def set_soc_alert_email():
+    global CONFIGURED_SOC_ALERT_EMAIL
+    data = request.get_json(silent=True) or {}
+    email_val = data.get("soc_email", "").strip()
+    if email_val:
+        CONFIGURED_SOC_ALERT_EMAIL = email_val
+        return jsonify({"status": "success", "soc_email": email_val})
+    return jsonify({"error": "Invalid email"}), 400
+
 @app.route('/scan_inbox_message/<msg_id>')
 def scan_inbox_message(msg_id):
     access_token = session.get('access_token')
@@ -587,6 +648,11 @@ def scan_inbox_message(msg_id):
     case_id = str(uuid.uuid4())[:8]
     save_case_record(case_id, analysis)
 
+    if analysis['threat_assessment']['threat_score'] >= 40:
+        target = CONFIGURED_SOC_ALERT_EMAIL or session.get('user_email')
+        if target:
+            dispatch_soc_alert_email(headers, target, case_id, analysis)
+
     return redirect(f"/?case={case_id}")
 
 @app.route('/api/get_session_inbox')
@@ -597,6 +663,7 @@ def get_session_inbox():
 def auth_logout():
     session.pop('access_token', None)
     session.pop('inbox_list', None)
+    session.pop('user_email', None)
     return redirect('/')
 
 @app.route('/api/cleanup_labels', methods=['POST'])
