@@ -446,23 +446,35 @@
     }
 
     function fetchCaseData(caseId) {
-      const btn = document.getElementById('demoBtn');
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
-      btn.disabled = true;
+  const btn = document.getElementById('demoBtn');
+  if (btn) {
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
+    btn.disabled = true;
+  }
 
-      fetch(`/api/get_case/${caseId}`)
-        .then(res => res.json())
-        .then(data => {
-          renderDashboard(data);
-          btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
-          btn.disabled = false;
-        })
-        .catch(err => {
-          console.error(err);
-          btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
-          btn.disabled = false;
-        });
-    }
+  fetch(`/api/get_case/${caseId}`)
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`Case ${caseId} not found`);
+      }
+      return res.json();
+    })
+    .then(data => {
+      renderDashboard(data);
+      if (btn) {
+        btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
+        btn.disabled = false;
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      if (btn) {
+        btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
+        btn.disabled = false;
+      }
+      alert("Could not load case data. Please re-audit the email directly from the Mailbox Triage Hub.");
+    });
+}
 
     function renderDashboard(data) {
       const assessment = data.threat_assessment || {};
