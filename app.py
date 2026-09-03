@@ -174,7 +174,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     if not recipient_email or recipient_email == "CONNECTED_MAILBOX" or unique_key in SENT_ALERTS:
         return
     
-    # Mark as sent immediately to avoid race condition
+    # Mark as sent immediately to avoid race conditions
     record_alert_dispatched(unique_key)
 
     try:
@@ -204,6 +204,7 @@ Inspect full network hops and evidence telemetry on the live triage hub.
 """
         msg = MIMEText(body)
         msg['to'] = recipient_email
+        msg['from'] = recipient_email
         msg['subject'] = subject
         
         raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
@@ -686,6 +687,9 @@ def refresh_inbox():
     access_token = session.get('access_token')
     if not access_token:
         return jsonify({"error": "No active session"}), 401
+
+    # INSTANT TRIAGE TRIGGER: runs triage immediately on click without waiting 45s
+    threading.Thread(target=background_threat_monitor).start()
 
     headers = {"Authorization": f"Bearer {access_token}"}
     try:
