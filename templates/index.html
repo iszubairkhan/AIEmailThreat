@@ -21,21 +21,21 @@
   <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 py-3 sticky top-0 z-50">
     <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
       
-<!-- Brand & Title -->
-<div class="flex items-center gap-3.5">
-  <div class="bg-slate-900 border border-sky-500/40 rounded-xl shadow-lg shadow-sky-500/20 flex-shrink-0 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 overflow-hidden relative">
-    <img src="https://raw.githubusercontent.com/iszubairkhan/AIEmailThreat/main/Nexora%20logo.png" 
-         alt="Nexora Logo" 
-         class="w-full h-full object-contain scale-[1.4] transition-transform duration-200">
-  </div>
-  <div>
-    <h1 class="text-sm sm:text-base font-black tracking-wide text-white flex items-center gap-1.5 flex-wrap">
-      AI EMAIL THREAT SENTINEL
-      <span class="text-[10px] bg-sky-500/20 text-sky-400 border border-sky-500/30 px-1.5 py-0.5 rounded-full font-bold">SIH26106</span>
-    </h1>
-    <p class="text-[11px] text-slate-400">Automated Relay &amp; Origin De-Anonymization Platform</p>
-  </div>
-</div>
+      <!-- Brand & Title -->
+      <div class="flex items-center gap-3.5">
+        <div class="bg-slate-900 border border-sky-500/40 rounded-xl shadow-lg shadow-sky-500/20 flex-shrink-0 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 overflow-hidden relative">
+          <img src="https://raw.githubusercontent.com/iszubairkhan/AIEmailThreat/main/Nexora%20logo.png" 
+               alt="Nexora Logo" 
+               class="w-full h-full object-contain scale-[1.4] transition-transform duration-200">
+        </div>
+        <div>
+          <h1 class="text-sm sm:text-base font-black tracking-wide text-white flex items-center gap-1.5 flex-wrap">
+            AI EMAIL THREAT SENTINEL
+            <span class="text-[10px] bg-sky-500/20 text-sky-400 border border-sky-500/30 px-1.5 py-0.5 rounded-full font-bold">SIH26106</span>
+          </h1>
+          <p class="text-[11px] text-slate-400">Automated Relay &amp; Origin De-Anonymization Platform</p>
+        </div>
+      </div>
       
       <!-- Action & Status Badges -->
       <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none flex-nowrap sm:flex-wrap">
@@ -316,16 +316,29 @@
   <!-- JavaScript Handlers -->
   <script>
     let globalInboxData = [];
+    let connectedSessionEmail = "{{ session.get('user_email', '') }}";
 
     function scrollToHelpDesk() {
       document.getElementById('helpDeskSection').scrollIntoView({ behavior: 'smooth' });
     }
 
     function openActivationModal() {
-      const saved = localStorage.getItem('soc_alert_email');
-      if (saved) {
-        document.getElementById('customSocEmail').value = saved;
-      }
+      fetch('/api/get_soc_alert_email')
+        .then(res => res.json())
+        .then(data => {
+          const input = document.getElementById('customSocEmail');
+          if (data && data.soc_email && data.soc_email !== 'CONNECTED_MAILBOX') {
+            input.value = data.soc_email;
+          } else if (connectedSessionEmail) {
+            input.value = connectedSessionEmail;
+          }
+        })
+        .catch(() => {
+          if (connectedSessionEmail) {
+            document.getElementById('customSocEmail').value = connectedSessionEmail;
+          }
+        });
+
       const m = document.getElementById('activationModal');
       m.classList.remove('hidden');
       m.classList.add('flex');
@@ -338,19 +351,29 @@
     }
 
     function useConnectedMail() {
-      document.getElementById('customSocEmail').value = "CONNECTED_MAILBOX";
+      if (connectedSessionEmail) {
+        document.getElementById('customSocEmail').value = connectedSessionEmail;
+      } else {
+        fetch('/api/get_soc_alert_email')
+          .then(res => res.json())
+          .then(data => {
+            if (data.soc_email && data.soc_email !== 'CONNECTED_MAILBOX') {
+              document.getElementById('customSocEmail').value = data.soc_email;
+            }
+          });
+      }
     }
 
     function saveSocEmail() {
       let emailVal = document.getElementById('customSocEmail').value.trim();
       if (!emailVal) {
-        emailVal = "CONNECTED_MAILBOX";
+        emailVal = connectedSessionEmail;
       }
 
       fetch('/api/set_soc_alert_email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ soc_email: emailVal === "CONNECTED_MAILBOX" ? "" : emailVal })
+        body: JSON.stringify({ soc_email: emailVal })
       })
       .then(res => res.json())
       .then(data => {
@@ -372,6 +395,18 @@
     window.addEventListener('DOMContentLoaded', () => {
       const yearEl = document.getElementById('currentYear');
       if (yearEl) yearEl.innerText = new Date().getFullYear();
+
+      // Automatically sync alert email on page load
+      fetch('/api/get_soc_alert_email')
+        .then(res => res.json())
+        .then(data => {
+          if (data.soc_email && data.soc_email !== 'CONNECTED_MAILBOX') {
+            connectedSessionEmail = data.soc_email;
+            const input = document.getElementById('customSocEmail');
+            if (input) input.value = data.soc_email;
+          }
+        })
+        .catch(() => {});
 
       const urlParams = new URLSearchParams(window.location.search);
       const caseId = urlParams.get('case');
