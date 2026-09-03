@@ -171,7 +171,7 @@ def apply_soc_label_to_message(headers, msg_id):
 def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique_msg_id):
     global SENT_ALERTS
     unique_key = str(unique_msg_id)
-    if not recipient_email or unique_key in SENT_ALERTS:
+    if not recipient_email or recipient_email == "CONNECTED_MAILBOX" or unique_key in SENT_ALERTS:
         return
     
     # Mark as sent immediately to avoid race condition
@@ -495,7 +495,7 @@ def background_threat_monitor():
         MONITORED_ACCOUNTS = load_monitored_accounts()
         
     settings = load_settings()
-    configured_soc_email = settings.get("soc_email", "")
+    configured_soc_email = settings.get("soc_email", "").strip()
 
     for email_addr, creds in list(MONITORED_ACCOUNTS.items()):
         try:
@@ -541,13 +541,16 @@ def background_threat_monitor():
                 # Mark as read and label in Gmail
                 apply_soc_label_to_message(headers, msg_id)
 
-                # Only dispatch email alerts for genuine threats (Score >= 65)
-                if threat_score >= 65:
+                # Dispatch alert for threats scoring 40% or above (aligned with PPT threshold)
+                if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
                     
-                    target_alert_email = configured_soc_email or email_addr
-                    print(f"🚨 [HIGH RISK THREAT DETECTED] ({threat_score}%) for {email_addr} - Case: {case_id}")
+                    target_alert_email = email_addr
+                    if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
+                        target_alert_email = configured_soc_email
+                    
+                    print(f"🚨 [THREAT DETECTED] ({threat_score}%) for {email_addr} -> Alerting {target_alert_email} - Case: {case_id}")
                     dispatch_soc_alert_email(headers, target_alert_email, case_id, analysis, msg_id)
 
         except Exception as e:
@@ -559,7 +562,7 @@ def background_threat_worker_loop():
             background_threat_monitor()
         except Exception as e:
             print(f"Background worker loop error: {e}")
-        time.sleep(60)
+        time.sleep(45)
 
 bg_thread = threading.Thread(target=background_threat_worker_loop, daemon=True)
 bg_thread.start()
@@ -628,6 +631,10 @@ def auth_callback():
         pass
 
     session['user_email'] = user_email
+
+    # Automatically set SOC alert target to this connected mailbox
+    if "@" in user_email:
+        save_settings({"soc_email": user_email})
 
     if refresh_token:
         save_monitored_account(user_email, refresh_token)
@@ -722,10 +729,20 @@ def refresh_inbox():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/get_soc_alert_email')
+def get_soc_alert_email():
+    settings = load_settings()
+    email_val = settings.get("soc_email", "").strip()
+    if not email_val or email_val == "CONNECTED_MAILBOX":
+        email_val = session.get("user_email", "")
+    return jsonify({"soc_email": email_val})
+
 @app.route('/api/set_soc_alert_email', methods=['POST'])
 def set_soc_alert_email():
     data = request.get_json(silent=True) or {}
     email_val = data.get("soc_email", "").strip()
+    if email_val == "CONNECTED_MAILBOX" or not email_val:
+        email_val = session.get("user_email", "")
     save_settings({"soc_email": email_val})
     return jsonify({"status": "success", "soc_email": email_val})
 
