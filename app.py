@@ -7,6 +7,7 @@ import hashlib
 import email
 from email import policy
 from email.mime.text import MIMEText
+from email.utils import formatdate, make_msgid
 import ipaddress
 import threading
 import time
@@ -170,12 +171,11 @@ def apply_soc_label_to_message(headers, msg_id):
 
 def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique_msg_id):
     global SENT_ALERTS
-    unique_key = str(unique_msg_id)
-    if not recipient_email or recipient_email == "CONNECTED_MAILBOX" or unique_key in SENT_ALERTS:
-        return
+    unique_key = f"ALERT_SENT_{unique_msg_id}"
     
-    # Mark as sent immediately to avoid race conditions
-    record_alert_dispatched(unique_key)
+    # Strict duplicate alert prevention
+    if not recipient_email or recipient_email == "CONNECTED_MAILBOX" or unique_key in SENT_ALERTS:
+        return False
 
     try:
         meta = analysis.get("metadata", {})
@@ -203,20 +203,31 @@ DETECTED RISK INDICATORS:
 Inspect full network hops and evidence telemetry on the live triage hub.
 """
         msg = MIMEText(body)
-        msg['to'] = recipient_email
-        msg['from'] = recipient_email
-        msg['subject'] = subject
+        msg['To'] = recipient_email
+        msg['From'] = recipient_email
+        msg['Reply-To'] = recipient_email
+        msg['Subject'] = subject
+        msg['Date'] = formatdate(localtime=True)
+        msg['Message-ID'] = make_msgid()
         
         raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
-        requests.post(
+        send_res = requests.post(
             "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
             headers=headers,
             json={"raw": raw_msg},
             timeout=10
         )
-        print(f"✅ Single SOC alert email successfully dispatched to {recipient_email} for msg {unique_key}")
+        
+        if send_res.status_code == 200:
+            record_alert_dispatched(unique_key)
+            print(f"✅ Single SOC alert email successfully dispatched to {recipient_email} for msg {unique_key}")
+            return True
+        else:
+            print(f"Gmail API error sending alert: {send_res.status_code} - {send_res.text}")
+            return False
     except Exception as e:
         print(f"Failed to dispatch SOC alert: {e}")
+        return False
 
 # -------------------------------------------------------------
 # 2. FORENSIC & IP INTELLIGENCE ENGINES
@@ -515,13 +526,7 @@ def background_threat_monitor():
 
             for m in messages:
                 msg_id = m['id']
-                if msg_id in SENT_ALERTS:
-                    apply_soc_label_to_message(headers, msg_id)
-                    continue
-
-                # Immediately lock ID in cache to prevent duplicate fetches
-                record_alert_dispatched(msg_id)
-
+                
                 raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw", headers=headers, timeout=10).json()
                 raw_base64 = raw_res.get("raw", "")
                 if not raw_base64:
@@ -532,7 +537,7 @@ def background_threat_monitor():
                 subject = analysis.get("metadata", {}).get("subject", "")
                 sender = analysis.get("metadata", {}).get("from", "").lower()
                 
-                # Secondary guardrail: Ignore alerts and system messages
+                # Strict loop protection
                 if "[soc alert]" in subject.lower() or "security alert" in subject.lower() or "google.com" in sender or "no-reply" in sender:
                     apply_soc_label_to_message(headers, msg_id)
                     continue
@@ -542,7 +547,7 @@ def background_threat_monitor():
                 # Mark as read and label in Gmail
                 apply_soc_label_to_message(headers, msg_id)
 
-                # Dispatch alert for threats scoring 40% or above (aligned with PPT threshold)
+                # Dispatch single alert for threats scoring >= 40%
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
@@ -551,7 +556,6 @@ def background_threat_monitor():
                     if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
                         target_alert_email = configured_soc_email
                     
-                    print(f"🚨 [THREAT DETECTED] ({threat_score}%) for {email_addr} -> Alerting {target_alert_email} - Case: {case_id}")
                     dispatch_soc_alert_email(headers, target_alert_email, case_id, analysis, msg_id)
 
         except Exception as e:
@@ -633,7 +637,6 @@ def auth_callback():
 
     session['user_email'] = user_email
 
-    # Automatically set SOC alert target to this connected mailbox
     if "@" in user_email:
         save_settings({"soc_email": user_email})
 
@@ -662,7 +665,6 @@ def auth_callback():
             date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
             snippet = msg_meta.get("snippet", "")
 
-            # Skip alert emails and security warnings in triage view
             if "[SOC ALERT]" in subject or "Security alert" in subject:
                 continue
 
@@ -688,7 +690,7 @@ def refresh_inbox():
     if not access_token:
         return jsonify({"error": "No active session"}), 401
 
-    # INSTANT TRIAGE TRIGGER: runs triage immediately on click without waiting 45s
+    # Immediate daemon sweep on manual refresh
     threading.Thread(target=background_threat_monitor).start()
 
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -763,11 +765,8 @@ def scan_inbox_message(msg_id):
     raw_base64 = msg_res.get("raw", "")
     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
 
-    # Apply tag and mark as read
     apply_soc_label_to_message(headers, msg_id)
-    record_alert_dispatched(msg_id)
 
-    # Perform forensic parsing without re-dispatching alert emails
     analysis = analyze_email_forensics(raw_bytes)
     case_id = str(uuid.uuid4())[:8]
     save_case_record(case_id, analysis)
@@ -805,6 +804,18 @@ def cleanup_labels():
         return jsonify({"error": str(e)}), 500
     
     return jsonify({"status": "success", "message": "No label found to remove."})
+
+@app.route('/api/clear_cache_locks', methods=['POST', 'GET'])
+def clear_cache_locks():
+    """Flushes alert cache locks cleanly so you can test repeat emails."""
+    global SENT_ALERTS
+    SENT_ALERTS = set()
+    if os.path.exists(ALERTS_FILE):
+        try:
+            os.remove(ALERTS_FILE)
+        except Exception:
+            pass
+    return jsonify({"status": "success", "message": "All alert duplicate locks successfully cleared."})
 
 @app.route('/scan_raw', methods=['POST'])
 def scan_raw():
