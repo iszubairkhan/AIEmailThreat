@@ -7,6 +7,7 @@ import hashlib
 import email
 from email import policy
 from email.mime.text import MIMEText
+from email.header import Header
 from email.utils import formatdate, make_msgid
 import ipaddress
 import threading
@@ -173,7 +174,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     global SENT_ALERTS
     unique_key = f"ALERT_SENT_{unique_msg_id}"
     
-    # Strict duplicate alert prevention
     if not recipient_email or recipient_email == "CONNECTED_MAILBOX" or unique_key in SENT_ALERTS:
         return False
 
@@ -182,8 +182,10 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         threat = analysis.get("threat_assessment", {})
         origin = analysis.get("origin_investigation", {})
         
-        subject = f"🚨 [SOC ALERT] Threat Detected ({threat.get('threat_score', 0)}%) - {meta.get('subject', 'Untitled')[:40]}"
-        body = f"""AI Email Threat Sentinel - Automated Incident Dispatch
+        # Clean ASCII-safe title with explicit branding
+        subject_text = f"[SOC ALERT] Threat Detected ({threat.get('threat_score', 0)}%) - {meta.get('subject', 'Untitled')[:40]}"
+        
+        body = f"""AI Email Threat Sentinel — Automated Incident Dispatch
 
 THREAT VERDICT: {threat.get('risk_tier', 'ELEVATED RISK')} ({threat.get('threat_score', 0)}%)
 CASE ID: #{case_id}
@@ -202,11 +204,13 @@ DETECTED RISK INDICATORS:
 
 Inspect full network hops and evidence telemetry on the live triage hub.
 """
-        msg = MIMEText(body)
+        # Explicit UTF-8 encoding prevents diamond question marks
+        msg = MIMEText(body, 'plain', 'utf-8')
         msg['To'] = recipient_email
-        msg['From'] = recipient_email
+        # Friendly sender display name replaces "me" in Gmail
+        msg['From'] = f"Nexora SOC Sentinel <{recipient_email}>"
         msg['Reply-To'] = recipient_email
-        msg['Subject'] = subject
+        msg['Subject'] = Header(subject_text, 'utf-8')
         msg['Date'] = formatdate(localtime=True)
         msg['Message-ID'] = make_msgid()
         
@@ -220,10 +224,10 @@ Inspect full network hops and evidence telemetry on the live triage hub.
         
         if send_res.status_code == 200:
             record_alert_dispatched(unique_key)
-            print(f"✅ Single SOC alert email successfully dispatched to {recipient_email} for msg {unique_key}")
+            print(f"✅ Clean SOC alert email dispatched to {recipient_email} for msg {unique_key}")
             return True
         else:
-            print(f"Gmail API error sending alert: {send_res.status_code} - {send_res.text}")
+            print(f"Gmail API dispatch failed: {send_res.status_code} - {send_res.text}")
             return False
     except Exception as e:
         print(f"Failed to dispatch SOC alert: {e}")
@@ -517,8 +521,8 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
             
-            # API Query: Exclude sent, from:me, Google notifications, and alerts
-            query = 'is:unread -is:sent -from:me -from:google.com -label:SOC-SCANNED -subject:"SOC ALERT" -subject:"Security alert"'
+            # STRICT QUERY: Exclude sent items, anything from self, and alerts
+            query = f'is:unread -is:sent -from:me -from:{email_addr} -from:google.com -label:SOC-SCANNED -subject:"SOC ALERT" -subject:"Security alert"'
             list_url = f'https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&maxResults=5'
             
             res = requests.get(list_url, headers=headers, timeout=10).json()
@@ -527,6 +531,28 @@ def background_threat_monitor():
             for m in messages:
                 msg_id = m['id']
                 
+                # Immediate lockout check
+                if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS:
+                    apply_soc_label_to_message(headers, msg_id)
+                    continue
+
+                # Pre-inspection to prevent recursive loops
+                meta_res = requests.get(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From",
+                    headers=headers,
+                    timeout=5
+                ).json()
+                
+                h_list = meta_res.get("payload", {}).get("headers", [])
+                subj = next((h["value"] for h in h_list if h["name"].lower() == "subject"), "")
+                sndr = next((h["value"] for h in h_list if h["name"].lower() == "from"), "").lower()
+
+                # Guardrail against alerts and self-sent emails
+                if "soc alert" in subj.lower() or "security alert" in subj.lower() or email_addr.lower() in sndr or "nexora" in sndr:
+                    apply_soc_label_to_message(headers, msg_id)
+                    record_alert_dispatched(msg_id)
+                    continue
+
                 raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw", headers=headers, timeout=10).json()
                 raw_base64 = raw_res.get("raw", "")
                 if not raw_base64:
@@ -534,20 +560,13 @@ def background_threat_monitor():
                 raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
                 
                 analysis = analyze_email_forensics(raw_bytes)
-                subject = analysis.get("metadata", {}).get("subject", "")
-                sender = analysis.get("metadata", {}).get("from", "").lower()
-                
-                # Strict loop protection
-                if "[soc alert]" in subject.lower() or "security alert" in subject.lower() or "google.com" in sender or "no-reply" in sender:
-                    apply_soc_label_to_message(headers, msg_id)
-                    continue
-
                 threat_score = analysis['threat_assessment']['threat_score']
 
-                # Mark as read and label in Gmail
+                # Mark scanned and lock ID
                 apply_soc_label_to_message(headers, msg_id)
+                record_alert_dispatched(msg_id)
 
-                # Dispatch single alert for threats scoring >= 40%
+                # Dispatch alert only for actual incoming threats >= 40%
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
@@ -665,7 +684,7 @@ def auth_callback():
             date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
             snippet = msg_meta.get("snippet", "")
 
-            if "[SOC ALERT]" in subject or "Security alert" in subject:
+            if "[SOC ALERT]" in subject or "Security alert" in subject or "SOC ALERT" in subject:
                 continue
 
             is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
@@ -690,7 +709,6 @@ def refresh_inbox():
     if not access_token:
         return jsonify({"error": "No active session"}), 401
 
-    # Immediate daemon sweep on manual refresh
     threading.Thread(target=background_threat_monitor).start()
 
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -714,7 +732,7 @@ def refresh_inbox():
                 date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
                 snippet = msg_meta.get("snippet", "")
 
-                if "[SOC ALERT]" in subject or "Security alert" in subject:
+                if "[SOC ALERT]" in subject or "Security alert" in subject or "SOC ALERT" in subject:
                     continue
 
                 is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
