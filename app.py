@@ -175,7 +175,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     unique_key = f"ALERT_SENT_{unique_msg_id}"
 
     if unique_key in SENT_ALERTS:
-        print(f"[SKIP] Alert for {unique_key} already in cache.")
+        print(f"[SKIP] Alert for {unique_key} already recorded in cache.")
         return False
 
     try:
@@ -771,6 +771,7 @@ def auth_login():
         return "<h3 style='color:red;font-family:sans-serif;'>OAuth Error: GOOGLE_CLIENT_ID is not configured.</h3>", 400
         
     scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.labels https://www.googleapis.com/auth/gmail.send"
+    
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={GOOGLE_CLIENT_ID}&"
@@ -778,7 +779,7 @@ def auth_login():
         f"response_type=code&"
         f"scope={scope}&"
         f"access_type=offline&"
-        f"prompt=consent"
+        f"prompt=select_account"
     )
     return redirect(auth_url)
 
@@ -967,16 +968,29 @@ def scan_inbox_message(msg_id):
 
     return redirect(f"/?case={case_id}")
 
-@app.route('/api/get_session_inbox')
-def get_session_inbox():
-    return jsonify(session.get('inbox_list', []))
-
 @app.route('/auth/logout')
 def auth_logout():
+    global MONITORED_ACCOUNTS
+    user_email = session.get('user_email')
+    
+    if user_email and user_email in MONITORED_ACCOUNTS:
+        MONITORED_ACCOUNTS.pop(user_email, None)
+        try:
+            with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+                json.dump(MONITORED_ACCOUNTS, f)
+            print(f"[DAEMON STOPPED] Completely unlinked and removed {user_email} from 24/7 background worker.")
+        except Exception as e:
+            print(f"Error saving accounts cache on logout: {e}")
+
     session.pop('access_token', None)
     session.pop('inbox_list', None)
     session.pop('user_email', None)
-    return redirect('/')
+    
+    return redirect('/?status=disconnected')
+
+@app.route('/api/get_session_inbox')
+def get_session_inbox():
+    return jsonify(session.get('inbox_list', []))
 
 @app.route('/api/cleanup_labels', methods=['POST'])
 def cleanup_labels():
