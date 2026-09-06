@@ -681,8 +681,8 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            query = "is:unread -label:SOC-SCANNED"
-            list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&maxResults=5"
+            query = "is:unread -label:SOC-SCANNED (in:inbox OR in:spam)"
+            list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&includeSpamTrash=true&maxResults=5"
 
             res = requests.get(list_url, headers=headers, timeout=10).json()
             messages = res.get("messages", [])
