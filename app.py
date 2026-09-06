@@ -192,11 +192,12 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         badge_border = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
 
         raw_subj = meta.get("subject", "Untitled")
-        clean_subj = re.sub(r"[^\x20-\x7E]", "", raw_subj).strip()[:35]
+        clean_subj = re.sub(r"[^a-zA-Z0-9\s.,!?:;_-]", "", raw_subj).strip()[:35]
         if not clean_subj:
             clean_subj = "Urgent"
 
-        subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {clean_subj}"
+        # Unique versioned subject to confirm the new code ran
+        subject_line = f"[SOC ALERT v2.0] Threat Detected ({score}% Risk) - {clean_subj}"
 
         reasons = threat.get("threat_reasons", [])
         if not reasons:
@@ -204,7 +205,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
 
         reasons_items = []
         for r in reasons:
-            clean_r = re.sub(r"[^\x20-\x7E]", "", str(r))
+            clean_r = re.sub(r"[^a-zA-Z0-9\s.,!?:;/()#_-]", "", str(r))
             reasons_items.append(f'<li style="margin-bottom: 6px; color: #cbd5e1; font-size: 12px; line-height: 1.5;">{clean_r}</li>')
         reasons_html = "".join(reasons_items)
 
@@ -688,8 +689,7 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            # Loop break: explicitly omit [SOC ALERT] subjects and include Spam folder
-            query = 'is:unread -label:SOC-SCANNED -subject:"[SOC ALERT]" (in:inbox OR in:spam)'
+            query = 'is:unread -label:SOC-SCANNED -subject:"[SOC ALERT" (in:inbox OR in:spam)'
             list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&includeSpamTrash=true&maxResults=5"
 
             res = requests.get(list_url, headers=headers, timeout=10).json()
@@ -698,7 +698,6 @@ def background_threat_monitor():
             for m in messages:
                 msg_id = m["id"]
 
-                # Deduplication check
                 if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS:
                     apply_soc_label_to_message(headers, msg_id)
                     continue
@@ -717,7 +716,6 @@ def background_threat_monitor():
 
                 clean_subj = re.sub(r"[^a-zA-Z0-9\s:_-]", "", subj).lower()
 
-                # Anti-loop check: immediately skip sentinel alerts
                 if (
                     "soc alert" in clean_subj
                     or "threat detected" in clean_subj
@@ -740,7 +738,6 @@ def background_threat_monitor():
                 analysis = analyze_email_forensics(raw_bytes)
                 threat_score = analysis["threat_assessment"]["threat_score"]
 
-                # Immediately apply label and record alert lock to break loops
                 apply_soc_label_to_message(headers, msg_id)
                 record_alert_dispatched(msg_id)
 
@@ -861,7 +858,7 @@ def auth_callback():
             date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
             snippet = msg_meta.get("snippet", "")
 
-            if "[SOC ALERT]" in subject or "Security alert" in subject or "SOC ALERT" in subject:
+            if "[SOC ALERT" in subject or "Security alert" in subject:
                 continue
 
             is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
@@ -909,7 +906,7 @@ def refresh_inbox():
                 date_str = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
                 snippet = msg_meta.get("snippet", "")
 
-                if "[SOC ALERT]" in subject or "Security alert" in subject or "SOC ALERT" in subject:
+                if "[SOC ALERT" in subject or "Security alert" in subject:
                     continue
 
                 is_suspicious = any(re.search(pat, f"{subject} {snippet}", re.IGNORECASE) for pat in BEC_URGENCY_PATTERNS)
