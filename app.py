@@ -106,7 +106,6 @@ def record_alert_dispatched(identifier):
     except Exception as e:
         print(f"Error saving alert record: {e}")
 
-# Initialize state from disk
 CASES_DB = load_cases_from_disk()
 MONITORED_ACCOUNTS = load_monitored_accounts()
 SENT_ALERTS = load_sent_alerts()
@@ -173,7 +172,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     global SENT_ALERTS
     unique_key = f"ALERT_SENT_{unique_msg_id}"
     
-    # 1. HARD LOOP GUARD: Never send alert to the same monitored account
     if not recipient_email or recipient_email == "CONNECTED_MAILBOX" or unique_key in SENT_ALERTS:
         return False
 
@@ -184,7 +182,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         threat = analysis.get("threat_assessment", {})
         origin = analysis.get("origin_investigation", {})
         
-        # Clean plain-ASCII subject line (Zero unicode, zero emoji to kill diamond ?)
         clean_subj = re.sub(r'[^a-zA-Z0-9\s:_-]', '', meta.get('subject', 'Untitled'))[:30]
         subject_text = f"SOC ALERT: Threat Detected ({threat.get('threat_score', 0)}%) - {clean_subj}"
         
@@ -203,10 +200,10 @@ Indicators:
 """
         msg = MIMEText(body, 'plain', 'utf-8')
         msg['To'] = recipient_email
-        # Friendly distinct name so Gmail does NOT label it "me"
         msg['From'] = f"Nexora Threat Desk <{recipient_email}>"
         msg['Reply-To'] = recipient_email
         msg['Subject'] = subject_text
+        msg['X-Nexora-Sentinel'] = "alert"
         msg['Date'] = formatdate(localtime=True)
         msg['Message-ID'] = make_msgid()
 
@@ -510,8 +507,8 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
             
-            # Query Gmail: ONLY process unread emails NOT sent by me, NOT labeled
-            query = 'is:unread -is:sent -from:me -label:SOC-SCANNED'
+            # API Query: Only get unread incoming mail NOT sent by self and NOT labeled
+            query = f'is:unread -is:sent -from:me -from:{email_addr} -label:SOC-SCANNED'
             list_url = f'https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&maxResults=5'
             
             res = requests.get(list_url, headers=headers, timeout=10).json()
@@ -520,12 +517,12 @@ def background_threat_monitor():
             for m in messages:
                 msg_id = m['id']
                 
-                # Check cache lock
+                # Check locks
                 if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS:
                     apply_soc_label_to_message(headers, msg_id)
                     continue
 
-                # Header check
+                # Header inspection before reading body
                 meta_res = requests.get(
                     f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From",
                     headers=headers,
@@ -536,10 +533,11 @@ def background_threat_monitor():
                 subj = next((h["value"] for h in h_list if h["name"].lower() == "subject"), "")
                 sndr = next((h["value"] for h in h_list if h["name"].lower() == "from"), "").lower()
 
-                # Loop breaker: Immediately discard and label any system or self-alert emails
+                # Loop suppression: ignore self, alerts, or nexora notifications
                 if (
-                    "soc" in subj.lower()
-                    or "alert" in subj.lower()
+                    "soc alert" in subj.lower()
+                    or "soc-alert" in subj.lower()
+                    or "security alert" in subj.lower()
                     or "nexora" in sndr
                     or email_addr.lower() in sndr
                 ):
@@ -548,7 +546,6 @@ def background_threat_monitor():
                     record_alert_dispatched(f"ALERT_SENT_{msg_id}")
                     continue
 
-                # Fetch and audit legitimate incoming emails
                 raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw", headers=headers, timeout=10).json()
                 raw_base64 = raw_res.get("raw", "")
                 if not raw_base64:
@@ -558,17 +555,17 @@ def background_threat_monitor():
                 analysis = analyze_email_forensics(raw_bytes)
                 threat_score = analysis['threat_assessment']['threat_score']
 
-                # Mark scanned
                 apply_soc_label_to_message(headers, msg_id)
                 record_alert_dispatched(msg_id)
 
-                # Dispatch single alert only for high-conviction external threats
+                # Route alerts to configured SOC email or current connected mailbox
+                target_email = email_addr
+                if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
+                    target_email = configured_soc_email
+
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
-                    
-                    target_email = configured_soc_email if (configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email) else email_addr
-                    
                     dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
 
         except Exception as e:
@@ -819,7 +816,6 @@ def cleanup_labels():
 
 @app.route('/api/clear_cache_locks', methods=['POST', 'GET'])
 def clear_cache_locks():
-    """Flushes alert cache locks cleanly so you can test repeat emails."""
     global SENT_ALERTS
     SENT_ALERTS = set()
     if os.path.exists(ALERTS_FILE):
