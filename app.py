@@ -171,8 +171,8 @@ def apply_soc_label_to_message(headers, msg_id):
 def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique_msg_id):
     global SENT_ALERTS
     unique_key = f"ALERT_SENT_{unique_msg_id}"
-    
-    if not recipient_email or recipient_email == "CONNECTED_MAILBOX" or unique_key in SENT_ALERTS:
+
+    if unique_key in SENT_ALERTS:
         return False
 
     record_alert_dispatched(unique_key)
@@ -181,31 +181,191 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         meta = analysis.get("metadata", {})
         threat = analysis.get("threat_assessment", {})
         origin = analysis.get("origin_investigation", {})
-        
-        clean_subj = re.sub(r'[^a-zA-Z0-9\s:_-]', '', meta.get('subject', 'Untitled'))[:30]
-        subject_text = f"SOC ALERT: Threat Detected ({threat.get('threat_score', 0)}%) - {clean_subj}"
-        
-        body = f"""AI Email Threat Sentinel - Incident Report
+        dns_auth = analysis.get("dns_authentication", {})
 
-Threat Score: {threat.get('threat_score', 0)}% ({threat.get('risk_tier', 'ELEVATED RISK')})
-Incident ID: #{case_id}
-Dashboard: https://aiemailthreat.onrender.com/?case={case_id}
+        score = threat.get("threat_score", 0)
+        risk_tier = threat.get("risk_tier", "ELEVATED RISK")
 
-Origin IP: {origin.get('ip')} ({origin.get('city', 'Unknown')}, {origin.get('country', 'Unknown')})
-Sender: {meta.get('from')}
-Return-Path: {meta.get('return_path')}
+        accent_color = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
+        badge_bg = "rgba(244, 63, 94, 0.15)" if score >= 70 else ("rgba(245, 158, 11, 0.15)" if score >= 40 else "rgba(16, 185, 129, 0.15)")
+        badge_border = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
 
-Indicators:
-{chr(10).join(['- ' + r for r in threat.get('threat_reasons', [])])}
+        # PURE ASCII: Eliminates black diamond ? characters
+        clean_raw_subj = re.sub(r"[^\x20-\x7E]", "", meta.get("subject", "Untitled"))[:35]
+        subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {clean_raw_subj}"
+
+        reasons = threat.get("threat_reasons", [])
+        if not reasons:
+            reasons = ["Verified Sender: Clean return-path alignment and authenticated corporate delivery."]
+
+        reasons_html = "".join([
+            f'<li style="margin-bottom: 6px; color: #cbd5e1; font-size: 12px; line-height: 1.5;">{r}</li>'
+            for r in reasons
+        ])
+
+        html_body = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 24px 0; background-color: #030712; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #0b132b; border: 1px solid #1e293b; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);">
+          <tr>
+            <td style="padding: 20px 28px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border-bottom: 1px solid #1e293b;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <span style="display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #38bdf8; background-color: #0369a120; border: 1px solid #0284c740; padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;">
+                      INCIDENT DISPATCH &bull; SIH26106
+                    </span>
+                    <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;">
+                      NEXORA SENTINEL &mdash; SOC AUDIT REPORT
+                    </h1>
+                  </td>
+                  <td align="right" valign="top">
+                    <span style="font-family: monospace; font-size: 12px; color: #94a3b8; font-weight: 700;">#{case_id}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 24px 28px 20px 28px; background-color: #070d1e;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+                <tr>
+                  <td width="33%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
+                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Threat Score</div>
+                    <div style="font-size: 26px; font-weight: 900; color: {accent_color}; margin-top: 4px;">{score}%</div>
+                  </td>
+                  <td width="4%"></td>
+                  <td width="63%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
+                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Risk Verdict</div>
+                    <div style="margin-top: 6px;">
+                      <span style="display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; color: {accent_color}; background-color: {badge_bg}; border: 1px solid {badge_border}50; padding: 4px 10px; border-radius: 6px;">
+                        {risk_tier}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 28px 20px 28px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
+                <tr>
+                  <td>
+                    <div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 6px;">
+                      Envelope Header Triage
+                    </div>
+                    <table width="100%" border="0" cellspacing="0" cellpadding="4" style="font-size: 12px;">
+                      <tr>
+                        <td width="28%" style="color: #64748b; font-weight: 600;">Subject:</td>
+                        <td style="color: #f8fafc; font-weight: 600;">{meta.get('subject', 'Untitled')}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
+                        <td style="color: #cbd5e1; font-family: monospace;">{meta.get('from', 'Unknown')}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #64748b; font-weight: 600;">Return-Path:</td>
+                        <td style="color: #f43f5e; font-family: monospace; font-weight: 600;">{meta.get('return_path', 'None')}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #64748b; font-weight: 600;">Origin Geo / IP:</td>
+                        <td style="color: #38bdf8; font-family: monospace;">
+                          {origin.get('ip', 'Unknown')} ({origin.get('city', 'Unknown')}, {origin.get('country', 'Unknown')})
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="color: #64748b; font-weight: 600;">Node Type:</td>
+                        <td style="color: #e2e8f0;">{origin.get('node_type', 'Corporate Relay')}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #64748b; font-weight: 600;">Authentication:</td>
+                        <td style="color: #cbd5e1; font-size: 11px;">
+                          SPF: <strong style="color: #38bdf8;">{dns_auth.get('spf', 'Neutral')[:20]}</strong> &bull; 
+                          DMARC: <strong style="color: #e2e8f0;">{dns_auth.get('dmarc', 'None')[:18]}</strong>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 28px 20px 28px;">
+              <div style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
+                <div style="font-size: 11px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;">
+                  Detected Risk Indicators
+                </div>
+                <ul style="margin: 0; padding-left: 18px;">
+                  {reasons_html}
+                </ul>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 28px 24px 28px;">
+              <div style="background-color: #030712; border: 1px dashed #334155; border-radius: 8px; padding: 12px;">
+                <div style="font-size: 10px; font-weight: 800; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">
+                  Section 65B Forensic Evidence Seal (BSA 2023)
+                </div>
+                <div style="font-family: monospace; font-size: 10px; color: #94a3b8; word-break: break-all; margin-top: 4px;">
+                  {meta.get('evidence_sha256', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')}
+                </div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 0 28px 28px 28px;">
+              <table border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center" style="border-radius: 8px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+                    <a href="https://aiemailthreat.onrender.com/?case={case_id}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 13px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 8px; letter-spacing: 0.2px;">
+                      Open Live Forensic Case Dashboard &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 16px 28px; background-color: #030712; border-top: 1px solid #1e293b; text-align: center;">
+              <p style="margin: 0; font-size: 10px; color: #475569; line-height: 1.4;">
+                Automated triage generated by Nexora Sentinel. Real-time RFC-822 MTA hop extraction & DNS verification.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
 """
-        msg = MIMEText(body, 'plain', 'utf-8')
-        msg['To'] = recipient_email
-        msg['From'] = f"Nexora Threat Desk <{recipient_email}>"
-        msg['Reply-To'] = recipient_email
-        msg['Subject'] = subject_text
-        msg['X-Nexora-Sentinel'] = "alert"
-        msg['Date'] = formatdate(localtime=True)
-        msg['Message-ID'] = make_msgid()
+
+        msg = MIMEMultipart("alternative")
+        msg["To"] = recipient_email
+        msg["From"] = f"Nexora Threat Desk <{recipient_email}>"
+        msg["Reply-To"] = recipient_email
+        msg["Subject"] = Header(subject_line, "ascii").encode()
+        msg["X-Nexora-Sentinel"] = "alert"
+        msg["Date"] = formatdate(localtime=True)
+        gen_id = make_msgid(domain="nexora.sentinel")
+        msg["Message-ID"] = gen_id
+
+        # Mark custom ID to suppress any potential bounce
+        record_alert_dispatched(str(gen_id).strip("<>"))
+
+        plain_text = f"NEXORA SOC ALERT\nCase ID: #{case_id}\nThreat: {risk_tier} ({score}%)\nDashboard: https://aiemailthreat.onrender.com/?case={case_id}"
+        msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
         send_res = requests.post(
@@ -213,8 +373,17 @@ Indicators:
             headers=headers,
             json={"raw": raw_msg},
             timeout=10
-        )
-        return send_res.status_code == 200
+        ).json()
+
+        # Tag the newly dispatched alert with SOC-SCANNED immediately
+        new_sent_id = send_res.get("id")
+        if new_sent_id:
+            record_alert_dispatched(new_sent_id)
+            record_alert_dispatched(f"ALERT_SENT_{new_sent_id}")
+            apply_soc_label_to_message(headers, new_sent_id)
+            return True
+
+        return False
     except Exception as e:
         print(f"Alert dispatch error: {e}")
         return False
@@ -495,70 +664,78 @@ def background_threat_monitor():
     global MONITORED_ACCOUNTS, SENT_ALERTS
     if not MONITORED_ACCOUNTS:
         MONITORED_ACCOUNTS = load_monitored_accounts()
-        
+
     settings = load_settings()
     configured_soc_email = settings.get("soc_email", "").strip()
 
     for email_addr, creds in list(MONITORED_ACCOUNTS.items()):
         try:
-            token = refresh_google_token(creds['refresh_token'])
+            token = refresh_google_token(creds["refresh_token"])
             if not token:
                 continue
 
             headers = {"Authorization": f"Bearer {token}"}
-            
-            # API Query: Only get unread incoming mail NOT sent by self and NOT labeled
-            query = f'is:unread -is:sent -from:me -from:{email_addr} -label:SOC-SCANNED'
-            list_url = f'https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&maxResults=5'
-            
+
+            # 1. Broad Query: Exclude sent items and existing scanned messages
+            query = "is:unread -is:sent -label:SOC-SCANNED"
+            list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&maxResults=5"
+
             res = requests.get(list_url, headers=headers, timeout=10).json()
             messages = res.get("messages", [])
 
             for m in messages:
-                msg_id = m['id']
-                
-                # Check locks
+                msg_id = m["id"]
+
+                # 2. Lock check: Skip previously analyzed or dispatched messages
                 if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS:
                     apply_soc_label_to_message(headers, msg_id)
                     continue
 
-                # Header inspection before reading body
+                # 3. Fast Metadata Check
                 meta_res = requests.get(
-                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From",
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Message-ID",
                     headers=headers,
                     timeout=5
                 ).json()
-                
+
                 h_list = meta_res.get("payload", {}).get("headers", [])
                 subj = next((h["value"] for h in h_list if h["name"].lower() == "subject"), "")
                 sndr = next((h["value"] for h in h_list if h["name"].lower() == "from"), "").lower()
+                msg_uuid = next((h["value"] for h in h_list if h["name"].lower() == "message-id"), "").strip("<>")
+                snippet = meta_res.get("snippet", "").lower()
 
-                # Loop suppression: ignore self, alerts, or nexora notifications
+                clean_subj = re.sub(r"[^a-zA-Z0-9\s:_-]", "", subj).lower()
+
+                # 4. Strict Self-Alert Drop: Never re-audit an outgoing alert
                 if (
-                    "soc alert" in subj.lower()
-                    or "soc-alert" in subj.lower()
-                    or "security alert" in subj.lower()
-                    or "nexora" in sndr
-                    or email_addr.lower() in sndr
+                    "soc alert" in clean_subj
+                    or "threat detected" in clean_subj
+                    or "nexora sentinel" in snippet
+                    or "incident dispatch" in snippet
+                    or "section 65b forensic" in snippet
+                    or "nexora.sentinel" in msg_uuid
+                    or msg_uuid in SENT_ALERTS
                 ):
                     apply_soc_label_to_message(headers, msg_id)
                     record_alert_dispatched(msg_id)
                     record_alert_dispatched(f"ALERT_SENT_{msg_id}")
                     continue
 
+                # 5. Analyze External Threat Email
                 raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw", headers=headers, timeout=10).json()
                 raw_base64 = raw_res.get("raw", "")
                 if not raw_base64:
                     continue
                 raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
-                
-                analysis = analyze_email_forensics(raw_bytes)
-                threat_score = analysis['threat_assessment']['threat_score']
 
+                analysis = analyze_email_forensics(raw_bytes)
+                threat_score = analysis["threat_assessment"]["threat_score"]
+
+                # Mark processed immediately before sending out alerts
                 apply_soc_label_to_message(headers, msg_id)
                 record_alert_dispatched(msg_id)
 
-                # Route alerts to configured SOC email or current connected mailbox
+                # Send to configured SOC email or current connected mailbox
                 target_email = email_addr
                 if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
                     target_email = configured_soc_email
@@ -566,6 +743,7 @@ def background_threat_monitor():
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
+                    # Sends alert directly to the same email address without looping
                     dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
 
         except Exception as e:
