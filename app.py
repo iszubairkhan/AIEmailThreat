@@ -204,26 +204,25 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         ])
 
         html_body = f"""<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="margin: 0; padding: 24px 0; background-color: #030712; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #0b132b; border: 1px solid #1e293b; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);">
+        <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #0b132b; border: 1px solid #1e293b; border-radius: 14px; overflow: hidden;">
           <tr>
-            <td style="padding: 20px 28px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border-bottom: 1px solid #1e293b;">
+            <td style="padding: 20px 28px; background: #0f172a; border-bottom: 1px solid #1e293b;">
               <table width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                   <td>
-                    <span style="display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #38bdf8; background-color: #0369a120; border: 1px solid #0284c740; padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;">
-                      INCIDENT DISPATCH &bull; SIH26106
+                    <span style="display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #38bdf8; background-color: rgba(3, 105, 161, 0.2); border: 1px solid rgba(2, 132, 199, 0.3); padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;">
+                      INCIDENT DISPATCH - SIH26106
                     </span>
-                    <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;">
-                      NEXORA SENTINEL &mdash; SOC AUDIT REPORT
+                    <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff;">
+                      NEXORA SENTINEL - SOC AUDIT REPORT
                     </h1>
                   </td>
                   <td align="right" valign="top">
@@ -235,17 +234,17 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
           </tr>
           <tr>
             <td style="padding: 24px 28px 20px 28px; background-color: #070d1e;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                   <td width="33%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
-                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Threat Score</div>
+                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Threat Score</div>
                     <div style="font-size: 26px; font-weight: 900; color: {accent_color}; margin-top: 4px;">{score}%</div>
                   </td>
                   <td width="4%"></td>
                   <td width="63%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
-                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Risk Verdict</div>
+                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Risk Verdict</div>
                     <div style="margin-top: 6px;">
-                      <span style="display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; color: {accent_color}; background-color: {badge_bg}; border: 1px solid {badge_border}50; padding: 4px 10px; border-radius: 6px;">
+                      <span style="display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; color: {accent_color}; background-color: {badge_bg}; border: 1px solid {badge_border}; padding: 4px 10px; border-radius: 6px;">
                         {risk_tier}
                       </span>
                     </div>
@@ -260,7 +259,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 <tr>
                   <td>
                     <div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 6px;">
-                      Envelope Header Triage
+                      ENVELOPE HEADER TRIAGE
                     </div>
                     <table width="100%" border="0" cellspacing="0" cellpadding="4" style="font-size: 12px;">
                       <tr>
@@ -288,7 +287,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                       <tr>
                         <td style="color: #64748b; font-weight: 600;">Authentication:</td>
                         <td style="color: #cbd5e1; font-size: 11px;">
-                          SPF: <strong style="color: #38bdf8;">{dns_auth.get('spf', 'Neutral')[:20]}</strong> &bull; 
+                          SPF: <strong style="color: #38bdf8;">{dns_auth.get('spf', 'Neutral')[:20]}</strong> - 
                           DMARC: <strong style="color: #e2e8f0;">{dns_auth.get('dmarc', 'None')[:18]}</strong>
                         </td>
                       </tr>
@@ -302,7 +301,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             <td style="padding: 0 28px 20px 28px;">
               <div style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
                 <div style="font-size: 11px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;">
-                  Detected Risk Indicators
+                  DETECTED RISK INDICATORS
                 </div>
                 <ul style="margin: 0; padding-left: 18px;">
                   {reasons_html}
@@ -314,7 +313,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             <td style="padding: 0 28px 24px 28px;">
               <div style="background-color: #030712; border: 1px dashed #334155; border-radius: 8px; padding: 12px;">
                 <div style="font-size: 10px; font-weight: 800; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">
-                  Section 65B Forensic Evidence Seal (BSA 2023)
+                  SECTION 65B FORENSIC EVIDENCE SEAL (BSA 2023)
                 </div>
                 <div style="font-family: monospace; font-size: 10px; color: #94a3b8; word-break: break-all; margin-top: 4px;">
                   {meta.get('evidence_sha256', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')}
@@ -326,20 +325,13 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             <td align="center" style="padding: 0 28px 28px 28px;">
               <table border="0" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td align="center" style="border-radius: 8px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
-                    <a href="https://aiemailthreat.onrender.com/?case={case_id}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 13px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 8px; letter-spacing: 0.2px;">
+                  <td align="center" style="border-radius: 8px; background: #0284c7;">
+                    <a href="https://aiemailthreat.onrender.com/?case={case_id}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 13px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 8px;">
                       Open Live Forensic Case Dashboard &rarr;
                     </a>
                   </td>
                 </tr>
               </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 16px 28px; background-color: #030712; border-top: 1px solid #1e293b; text-align: center;">
-              <p style="margin: 0; font-size: 10px; color: #475569; line-height: 1.4;">
-                Automated triage generated by Nexora Sentinel. Real-time RFC-822 MTA hop extraction & DNS verification.
-              </p>
             </td>
           </tr>
         </table>
