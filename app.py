@@ -155,19 +155,20 @@ def get_or_create_soc_label(headers):
     except Exception as e:
         print(f"Error managing SOC label: {e}")
         return None
-
+        
 def apply_soc_label_to_message(headers, msg_id):
     try:
         label_id = get_or_create_soc_label(headers)
-        body = {"removeLabelIds": ["UNREAD"]}
+        body = {}
         if label_id:
             body["addLabelIds"] = [label_id]
-        requests.post(
-            f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}/modify",
-            headers=headers,
-            json=body,
-            timeout=5
-        )
+        if body:
+            requests.post(
+                f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}/modify",
+                headers=headers,
+                json=body,
+                timeout=5
+            )
     except Exception as e:
         print(f"Error applying SOC label: {e}")
 
