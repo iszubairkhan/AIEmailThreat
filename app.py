@@ -191,11 +191,10 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         badge_bg = "rgba(244, 63, 94, 0.15)" if score >= 70 else ("rgba(245, 158, 11, 0.15)" if score >= 40 else "rgba(16, 185, 129, 0.15)")
         badge_border = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
 
-        # Sanitize subject line to pure ASCII to prevent ?????? corruptions
         raw_subj = meta.get("subject", "Untitled")
         clean_subj = re.sub(r"[^\x20-\x7E]", "", raw_subj).strip()[:35]
         if not clean_subj:
-            clean_subj = "Suspicious Message"
+            clean_subj = "Urgent"
 
         subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {clean_subj}"
 
@@ -209,7 +208,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             reasons_items.append(f'<li style="margin-bottom: 6px; color: #cbd5e1; font-size: 12px; line-height: 1.5;">{clean_r}</li>')
         reasons_html = "".join(reasons_items)
 
-        # Pure Dark Navy Card
         html_body = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -227,7 +225,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 <tr>
                   <td>
                     <span style="display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #38bdf8; background-color: rgba(3, 105, 161, 0.2); border: 1px solid rgba(2, 132, 199, 0.4); padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;">
-                      INCIDENT DISPATCH - SIH26106
+                      INCIDENT DISPATCH &bull; SIH26106
                     </span>
                     <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;">
                       NEXORA SENTINEL &mdash; SOC AUDIT REPORT
@@ -252,7 +250,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                   <td width="63%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
                     <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Risk Verdict</div>
                     <div style="margin-top: 6px;">
-                      <span style="display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; color: {accent_color}; background-color: {badge_bg}; border: 1px solid {badge_border}; padding: 4px 10px; border-radius: 6px;">
+                      <span style="display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; color: {accent_color}; background-color: {badge_bg}; border: 1px solid {badge_border}50; padding: 4px 10px; border-radius: 6px;">
                         {risk_tier}
                       </span>
                     </div>
@@ -267,7 +265,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 <tr>
                   <td>
                     <div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 6px;">
-                      ENVELOPE HEADER TRIAGE
+                      Envelope Header Triage
                     </div>
                     <table width="100%" border="0" cellspacing="0" cellpadding="4" style="font-size: 12px;">
                       <tr>
@@ -275,7 +273,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                         <td style="color: #f8fafc; font-weight: 600;">{clean_subj}</td>
                       </tr>
                       <tr>
-                        <td width="28%" style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
+                        <td style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
                         <td style="color: #cbd5e1; font-family: monospace;">{re.sub(r'[^a-zA-Z0-9\s@.<>_-]', '', str(meta.get('from', 'Unknown')))}</td>
                       </tr>
                       <tr>
@@ -309,7 +307,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             <td style="padding: 0 28px 20px 28px;">
               <div style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
                 <div style="font-size: 11px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;">
-                  DETECTED RISK INDICATORS
+                  Detected Risk Indicators
                 </div>
                 <ul style="margin: 0; padding-left: 18px;">
                   {reasons_html}
@@ -321,7 +319,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             <td style="padding: 0 28px 24px 28px;">
               <div style="background-color: #030712; border: 1px dashed #334155; border-radius: 8px; padding: 12px;">
                 <div style="font-size: 10px; font-weight: 800; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">
-                  SECTION 65B FORENSIC EVIDENCE SEAL (BSA 2023)
+                  Section 65B Forensic Evidence Seal (BSA 2023)
                 </div>
                 <div style="font-family: monospace; font-size: 10px; color: #94a3b8; word-break: break-all; margin-top: 4px;">
                   {meta.get('evidence_sha256', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')}
@@ -367,7 +365,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         gen_id = make_msgid(domain="nexora.sentinel")
         msg["Message-ID"] = gen_id
 
-        # Cache ID immediately to prevent recursion loops
         clean_gen_id = str(gen_id).strip("<>")
         record_alert_dispatched(clean_gen_id)
         record_alert_dispatched(unique_key)
@@ -692,7 +689,7 @@ def background_threat_monitor():
             headers = {"Authorization": f"Bearer {token}"}
 
             # Loop break: explicitly omit [SOC ALERT] subjects and include Spam folder
-            query = "is:unread -label:SOC-SCANNED -subject:\"[SOC ALERT]\" (in:inbox OR in:spam)"
+            query = 'is:unread -label:SOC-SCANNED -subject:"[SOC ALERT]" (in:inbox OR in:spam)'
             list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&includeSpamTrash=true&maxResults=5"
 
             res = requests.get(list_url, headers=headers, timeout=10).json()
