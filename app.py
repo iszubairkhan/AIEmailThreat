@@ -175,7 +175,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     unique_key = f"ALERT_SENT_{unique_msg_id}"
 
     if unique_key in SENT_ALERTS:
-        print(f"Skipping duplicate dispatch: {unique_key} already recorded.")
+        print(f"[SKIP] Alert for {unique_key} already in cache.")
         return False
 
     try:
@@ -383,14 +383,14 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 record_alert_dispatched(f"ALERT_SENT_{new_id}")
                 apply_soc_label_to_message(headers, new_id)
             record_alert_dispatched(unique_key)
-            print(f"Alert successfully dispatched to {recipient_email}")
+            print(f"[SUCCESS] Alert email dispatched to {recipient_email}")
             return True
         else:
-            print(f"Gmail Send API Failed: {res.status_code} - {res.text}")
+            print(f"[FAILED] Gmail Send API: {res.status_code} - {res.text}")
             return False
 
     except Exception as e:
-        print(f"Alert dispatch exception: {e}")
+        print(f"[ERROR] dispatch_soc_alert_email: {e}")
         return False
 
 # -------------------------------------------------------------
@@ -731,7 +731,6 @@ def background_threat_monitor():
                 threat_score = analysis["threat_assessment"]["threat_score"]
 
                 apply_soc_label_to_message(headers, msg_id)
-                record_alert_dispatched(msg_id)
 
                 target_email = email_addr
                 if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
@@ -741,6 +740,8 @@ def background_threat_monitor():
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
                     dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
+                else:
+                    record_alert_dispatched(msg_id)
 
         except Exception as e:
             print(f"Monitor loop error: {e}")
@@ -953,6 +954,16 @@ def scan_inbox_message(msg_id):
     analysis = analyze_email_forensics(raw_bytes)
     case_id = str(uuid.uuid4())[:8]
     save_case_record(case_id, analysis)
+
+    threat_score = analysis.get("threat_assessment", {}).get("threat_score", 0)
+    if threat_score >= 40:
+        settings = load_settings()
+        configured_soc_email = settings.get("soc_email", "").strip()
+        user_email = session.get("user_email", "")
+        target_email = configured_soc_email if (configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email) else user_email
+        
+        if target_email:
+            dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
 
     return redirect(f"/?case={case_id}")
 
