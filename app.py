@@ -155,8 +155,9 @@ def get_or_create_soc_label(headers):
     except Exception as e:
         print(f"Error managing SOC label: {e}")
         return None
-        
+
 def apply_soc_label_to_message(headers, msg_id):
+    """Adds the SOC-SCANNED label WITHOUT marking the scanned email as read."""
     try:
         label_id = get_or_create_soc_label(headers)
         body = {}
@@ -197,7 +198,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         if not clean_subj:
             clean_subj = "Urgent"
 
-        # Pure ASCII subject header - eliminates any diamond question mark glyphs
         subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {clean_subj}"
 
         reasons = threat.get("threat_reasons", [])
@@ -275,11 +275,11 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                         <td style="color: #f8fafc; font-weight: 600;">{clean_subj}</td>
                       </tr>
                       <tr>
-                        <td style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
+                        <td width="28%" style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
                         <td style="color: #cbd5e1; font-family: monospace;">{re.sub(r'[^a-zA-Z0-9\s@.<>_-]', '', str(meta.get('from', 'Unknown')))}</td>
                       </tr>
                       <tr>
-                        <td style="color: #64748b; font-weight: 600;">Return-Path:</td>
+                        <td width="28%" style="color: #64748b; font-weight: 600;">Return-Path:</td>
                         <td style="color: #f43f5e; font-family: monospace; font-weight: 600;">{re.sub(r'[^a-zA-Z0-9\s@.<>_-]', '', str(meta.get('return_path', 'None')))}</td>
                       </tr>
                       <tr>
@@ -392,7 +392,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 record_alert_dispatched(new_id)
                 record_alert_dispatched(f"ALERT_SENT_{new_id}")
                 apply_soc_label_to_message(headers, new_id)
-                # Auto-mark sent alert as read in the mailbox immediately
+                # Auto-mark ONLY the generated alert email as read so it won't loop
                 try:
                     requests.post(
                         f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{new_id}/modify",
@@ -700,7 +700,7 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            # Loop break: explicitly omit [SOC ALERT] subjects and include Spam folder
+            # Polls Inbox and Spam for unread threats, explicitly ignoring alerts and self-sent mail
             query = 'is:unread -label:SOC-SCANNED -from:me -subject:"[SOC ALERT" (in:inbox OR in:spam)'
             list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&includeSpamTrash=true&maxResults=10"
 
@@ -710,7 +710,7 @@ def background_threat_monitor():
             for m in messages:
                 msg_id = m["id"]
 
-                # 1. Deduplication check
+                # Deduplication check
                 if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS:
                     apply_soc_label_to_message(headers, msg_id)
                     continue
@@ -730,7 +730,7 @@ def background_threat_monitor():
 
                 clean_subj = re.sub(r"[^a-zA-Z0-9\s:_-]", "", subj).lower()
 
-                # 2. Hard Anti-Loop Filters: Immediately ignore any self-sent alert
+                # Anti-loop check: ignore any alert emails or messages sent from self
                 if (
                     is_nexora_header == "alert"
                     or "soc alert" in clean_subj
@@ -755,7 +755,7 @@ def background_threat_monitor():
                 analysis = analyze_email_forensics(raw_bytes)
                 threat_score = analysis["threat_assessment"]["threat_score"]
 
-                # Mark message scanned BEFORE sending to break loops
+                # Apply label (without marking as read) to mark it scanned
                 apply_soc_label_to_message(headers, msg_id)
                 record_alert_dispatched(msg_id)
                 record_alert_dispatched(f"ALERT_SENT_{msg_id}")
@@ -764,6 +764,7 @@ def background_threat_monitor():
                 if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
                     target_email = configured_soc_email
 
+                # Automated dispatch when spoofed/threat email arrives
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
@@ -965,6 +966,7 @@ def set_soc_alert_email():
 
 @app.route('/scan_inbox_message/<msg_id>')
 def scan_inbox_message(msg_id):
+    """Audits email from UI and displays dashboard without sending an email alert."""
     access_token = session.get('access_token')
     if not access_token:
         return redirect('/auth/login')
@@ -981,16 +983,6 @@ def scan_inbox_message(msg_id):
     analysis = analyze_email_forensics(raw_bytes)
     case_id = str(uuid.uuid4())[:8]
     save_case_record(case_id, analysis)
-
-    threat_score = analysis.get("threat_assessment", {}).get("threat_score", 0)
-    if threat_score >= 40:
-        settings = load_settings()
-        configured_soc_email = settings.get("soc_email", "").strip()
-        user_email = session.get("user_email", "")
-        target_email = configured_soc_email if (configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email) else user_email
-        
-        if target_email:
-            dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
 
     return redirect(f"/?case={case_id}")
 
