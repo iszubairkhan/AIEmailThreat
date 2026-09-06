@@ -101,7 +101,8 @@ def load_sent_alerts():
 
 def record_alert_dispatched(identifier):
     global SENT_ALERTS
-    SENT_ALERTS.add(str(identifier))
+    clean_id = str(identifier).strip("<>").strip()
+    SENT_ALERTS.add(clean_id)
     try:
         with open(ALERTS_FILE, "w", encoding="utf-8") as f:
             json.dump(list(SENT_ALERTS), f)
@@ -175,7 +176,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     unique_key = f"ALERT_SENT_{unique_msg_id}"
 
     if unique_key in SENT_ALERTS or unique_msg_id in SENT_ALERTS:
-        print(f"[SKIP] Alert for {unique_msg_id} already dispatched.")
         return False
 
     try:
@@ -196,8 +196,8 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         if not clean_subj:
             clean_subj = "Urgent"
 
-        # Unique versioned subject to confirm the new code ran
-        subject_line = f"[SOC ALERT v2.0] Threat Detected ({score}% Risk) - {clean_subj}"
+        # Pure ASCII subject line: Zero question marks possible
+        subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {clean_subj}"
 
         reasons = threat.get("threat_reasons", [])
         if not reasons:
@@ -689,7 +689,8 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            query = 'is:unread -label:SOC-SCANNED -subject:"[SOC ALERT" (in:inbox OR in:spam)'
+            # Explicitly reject alerts and self-sent emails from the query
+            query = 'is:unread -label:SOC-SCANNED -from:me -subject:"[SOC ALERT" (in:inbox OR in:spam)'
             list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&includeSpamTrash=true&maxResults=5"
 
             res = requests.get(list_url, headers=headers, timeout=10).json()
@@ -698,12 +699,13 @@ def background_threat_monitor():
             for m in messages:
                 msg_id = m["id"]
 
+                # 1. Deduplication check
                 if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS:
                     apply_soc_label_to_message(headers, msg_id)
                     continue
 
                 meta_res = requests.get(
-                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Message-ID",
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Message-ID&metadataHeaders=X-Nexora-Sentinel",
                     headers=headers,
                     timeout=5
                 ).json()
@@ -712,17 +714,21 @@ def background_threat_monitor():
                 subj = next((h["value"] for h in h_list if h["name"].lower() == "subject"), "")
                 sndr = next((h["value"] for h in h_list if h["name"].lower() == "from"), "").lower()
                 msg_uuid = next((h["value"] for h in h_list if h["name"].lower() == "message-id"), "").strip("<>")
+                is_nexora_header = next((h["value"] for h in h_list if h["name"].lower() == "x-nexora-sentinel"), "")
                 snippet = meta_res.get("snippet", "").lower()
 
                 clean_subj = re.sub(r"[^a-zA-Z0-9\s:_-]", "", subj).lower()
 
+                # 2. Hard Anti-Loop Filters: Immediately ignore any self-sent alert
                 if (
-                    "soc alert" in clean_subj
+                    is_nexora_header == "alert"
+                    or "soc alert" in clean_subj
                     or "threat detected" in clean_subj
                     or "nexora sentinel" in snippet
                     or "incident dispatch" in snippet
                     or "nexora.sentinel" in msg_uuid
                     or msg_uuid in SENT_ALERTS
+                    or email_addr.lower() in sndr
                 ):
                     apply_soc_label_to_message(headers, msg_id)
                     record_alert_dispatched(msg_id)
@@ -738,8 +744,10 @@ def background_threat_monitor():
                 analysis = analyze_email_forensics(raw_bytes)
                 threat_score = analysis["threat_assessment"]["threat_score"]
 
+                # Mark message scanned BEFORE sending to break loops
                 apply_soc_label_to_message(headers, msg_id)
                 record_alert_dispatched(msg_id)
+                record_alert_dispatched(f"ALERT_SENT_{msg_id}")
 
                 target_email = email_addr
                 if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
