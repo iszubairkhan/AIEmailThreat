@@ -8,6 +8,7 @@ import email
 from email import policy
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.header import Header
 from email.utils import formatdate, make_msgid
 import ipaddress
 import threading
@@ -22,8 +23,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "").strip() or os.urandom(32).hex()
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com").strip()
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "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").strip()
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
 CASES_FILE = "cases_cache.json"
@@ -35,12 +36,8 @@ CASES_DB = {}
 MONITORED_ACCOUNTS = {}
 SENT_ALERTS = set()
 
-# Prevent overlapping monitor runs in the same Python process.
 MONITOR_LOCK = threading.Lock()
 ALERT_FILE_LOCK = threading.Lock()
-
-# A short-lived in-memory claim set prevents two monitor passes from processing
-# the same Gmail message at the same time. Persistent SENT_ALERTS survives restarts.
 PROCESSING_MESSAGES = set()
 
 
@@ -110,7 +107,6 @@ def load_sent_alerts():
     return set()
 
 def record_alert_dispatched(identifier):
-    """Persist an identifier safely so the same message is not alerted twice."""
     global SENT_ALERTS
     clean_id = str(identifier).strip("<>").strip()
     if not clean_id:
@@ -174,7 +170,6 @@ def get_or_create_soc_label(headers):
         return None
 
 def apply_soc_label_to_message(headers, msg_id, mark_as_read=False):
-    """Applies SOC-SCANNED label. Only removes UNREAD if explicitly instructed."""
     try:
         label_id = get_or_create_soc_label(headers)
         body = {}
@@ -193,19 +188,16 @@ def apply_soc_label_to_message(headers, msg_id, mark_as_read=False):
         print(f"Error modifying message {msg_id}: {e}")
 
 def sanitize_to_ascii(text):
-    """Enforces strict ASCII representation to kill question marks permanently."""
     if not text:
         return ""
     return re.sub(r"[^\x20-\x7E]", "", str(text)).strip()
 
 def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique_msg_id):
-    """Send one clean, ASCII-safe SOC alert and permanently deduplicate it."""
     global SENT_ALERTS
 
     unique_msg_id = str(unique_msg_id).strip("<>").strip()
     unique_key = f"ALERT_SENT_{unique_msg_id}"
 
-    # Fast duplicate check before any network call.
     with ALERT_FILE_LOCK:
         if unique_key in SENT_ALERTS or unique_msg_id in SENT_ALERTS:
             return False
@@ -226,10 +218,8 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         if not raw_subj:
             raw_subj = "Suspicious Message"
 
-        # ASCII-only subject. Do NOT use Header(..., "ascii").
         subject_line = f"[SOC ALERT] Threat Detected - {score}% Risk - Case #{case_id}"
 
-        # Escape every dynamic value before putting it into HTML.
         e_subject = html.escape(raw_subj, quote=True)
         e_sender = html.escape(sanitize_to_ascii(meta.get("from", "Unknown")), quote=True)
         e_return = html.escape(sanitize_to_ascii(meta.get("return_path", "None")), quote=True)
@@ -259,7 +249,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
 
         dashboard_url = f"https://aiemailthreat.onrender.com/?case={quote(str(case_id))}"
 
-        # ASCII-only visible text keeps the message readable even in strict mail clients.
         html_body = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -379,7 +368,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             data = res.json()
             new_id = data.get("id")
 
-            # Persist the source ID and generated alert ID only after Gmail accepted the send.
             record_alert_dispatched(unique_msg_id)
             record_alert_dispatched(unique_key)
             record_alert_dispatched(str(gen_id))
@@ -501,10 +489,10 @@ def analyze_email_forensics(raw_bytes: bytes):
     date_header = str(msg.get('Date', 'Unknown'))
     message_id = str(msg.get('Message-ID', 'None'))
 
-    domain_match = re.search(r"@([\w\.-]+)", sender)
+    domain_match = re.search(r"@([\w.-]+)", sender)
     sender_domain = domain_match.group(1).strip(">").lower() if domain_match else ""
 
-    return_path_match = re.search(r"@([\w\.-]+)", return_path)
+    return_path_match = re.search(r"@([\w.-]+)", return_path)
     return_path_domain = return_path_match.group(1).strip(">").lower() if return_path_match else ""
 
     sender_base = get_base_domain(sender_domain)
@@ -522,7 +510,7 @@ def analyze_email_forensics(raw_bytes: bytes):
     discovered_ips = []
 
     for idx, hop_str in enumerate(received_headers):
-        ips = re.findall(r"\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\b", str(hop_str))
+        ips = re.findall(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", str(hop_str))
         public_ips = []
         for ip in ips:
             try:
@@ -671,7 +659,6 @@ def refresh_google_token(refresh_token):
         return None
 
 def _background_threat_monitor():
-    """Single monitor pass. The public wrapper below prevents overlap."""
     global MONITORED_ACCOUNTS, SENT_ALERTS, PROCESSING_MESSAGES
 
     if not MONITORED_ACCOUNTS:
@@ -692,7 +679,6 @@ def _background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            # Only unread, unscanned, non-self, non-SOC-alert mail is eligible.
             query = 'is:unread -label:SOC-SCANNED -from:me -subject:"[SOC ALERT]" (in:inbox OR in:spam)'
             list_url = (
                 "https://gmail.googleapis.com/gmail/v1/users/me/messages?"
@@ -701,7 +687,6 @@ def _background_threat_monitor():
 
             res = requests.get(list_url, headers=headers, timeout=10)
             if res.status_code != 200:
-                print(f"[MONITOR] Gmail list failed: {res.status_code} - {res.text}")
                 continue
 
             messages = res.json().get("messages", [])
@@ -711,7 +696,6 @@ def _background_threat_monitor():
                 if not msg_id:
                     continue
 
-                # Atomic-in-process claim: only one pass can process this message.
                 with ALERT_FILE_LOCK:
                     if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS or msg_id in PROCESSING_MESSAGES:
                         continue
@@ -746,7 +730,6 @@ def _background_threat_monitor():
                     snippet = str(meta_data.get("snippet", "")).lower()
                     clean_subj = sanitize_to_ascii(subj).lower()
 
-                    # Hard circuit breaker for every alert generated by Nexora.
                     self_markers = (
                         is_nexora_header == "alert"
                         or bool(alert_id)
@@ -781,7 +764,6 @@ def _background_threat_monitor():
                     analysis = analyze_email_forensics(raw_bytes)
                     threat_score = int(analysis["threat_assessment"]["threat_score"])
 
-                    # Claim the source permanently before dispatch so a second pass cannot resend it.
                     apply_soc_label_to_message(headers, msg_id, mark_as_read=False)
                     record_alert_dispatched(msg_id)
                     if msg_uuid:
@@ -805,9 +787,7 @@ def _background_threat_monitor():
 
 
 def background_threat_monitor():
-    """Run one monitor pass only if another pass is not already running."""
     if not MONITOR_LOCK.acquire(blocking=False):
-        print("[MONITOR] Overlapping monitor run skipped.")
         return
     try:
         _background_threat_monitor()
@@ -824,7 +804,6 @@ def background_threat_worker_loop():
         time.sleep(45)
 
 
-# Start exactly one monitor thread in this Python process.
 bg_thread = threading.Thread(
     target=background_threat_worker_loop,
     name="nexora-soc-monitor",
@@ -1016,26 +995,24 @@ def set_soc_alert_email():
 
 @app.route('/scan_inbox_message/<msg_id>')
 def scan_inbox_message(msg_id):
-    """Audits email manually and shows the dashboard. Zero email alerts are dispatched."""
     access_token = session.get('access_token')
     if not access_token:
         return redirect('/auth/login')
 
     headers = {"Authorization": f"Bearer {access_token}"}
-    msg_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw"
+    msg_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{quote(msg_id)}?format=raw"
     msg_res = requests.get(msg_url, headers=headers, timeout=10).json()
 
     raw_base64 = msg_res.get("raw", "")
     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
 
-    # Apply tag to show message was audited; leave UNREAD status untouched
     apply_soc_label_to_message(headers, msg_id, mark_as_read=False)
 
     analysis = analyze_email_forensics(raw_bytes)
     case_id = str(uuid.uuid4())[:8]
     save_case_record(case_id, analysis)
 
-    return redirect(f"/?case={case_id}")
+    return redirect(f"/?case={quote(str(case_id))}")
 
 @app.route('/auth/logout')
 def auth_logout():
