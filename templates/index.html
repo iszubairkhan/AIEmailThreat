@@ -126,7 +126,7 @@
       </div>
 
       <!-- Mail List -->
-      <div id="inboxItemsList" class="space-y-2"></div>
+      <div id="inboxItemsList" class="space-y-2.5"></div>
     </div>
 
     <!-- Forensic Dashboard -->
@@ -396,7 +396,6 @@
       const yearEl = document.getElementById('currentYear');
       if (yearEl) yearEl.innerText = new Date().getFullYear();
 
-      // Automatically sync alert email on page load
       fetch('/api/get_soc_alert_email')
         .then(res => res.json())
         .then(data => {
@@ -513,25 +512,26 @@
       emails.forEach(mail => {
         const isThreat = mail.threat_preview === 'CRITICAL';
         const item = document.createElement('div');
-        item.className = `p-3 bg-slate-950/70 hover:bg-slate-800/80 border ${isThreat ? 'border-rose-500/30' : 'border-slate-800/80'} rounded-xl transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 cursor-pointer`;
-        item.onclick = () => {
-          window.location.href = `/scan_inbox_message/${mail.id}`;
-        };
+        
+        // Single responsive card container
+        item.className = `p-4 bg-slate-900/70 hover:bg-slate-800/80 border ${isThreat ? 'border-rose-500/40 shadow-rose-950/20' : 'border-slate-800/80'} rounded-xl transition flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md`;
 
         item.innerHTML = `
-          <div class="space-y-1 w-full sm:max-w-xl">
-            <div class="flex items-center justify-between sm:justify-start gap-2">
-              <span class="text-xs font-bold text-white truncate">${mail.subject}</span>
-              <span class="text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${isThreat ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
+          <div class="flex-1 min-w-0 pr-0 md:pr-3 cursor-pointer" onclick="window.location.href='/scan_inbox_message/${mail.id}'">
+            <div class="flex flex-wrap items-center gap-2 mb-1.5">
+              <h4 class="text-xs sm:text-sm font-bold text-slate-100 truncate">${mail.subject}</h4>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isThreat ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
                 ${isThreat ? 'Threat Cue' : 'Clean'}
               </span>
             </div>
-            <p class="text-[10px] text-slate-400 font-mono truncate">${mail.from}</p>
-            <p class="text-[10px] text-slate-500 truncate">${mail.snippet}</p>
+            <p class="text-[11px] text-slate-400 mb-1 font-medium truncate">${mail.from}</p>
+            <p class="text-[11px] text-slate-500 line-clamp-1 break-all">${mail.snippet}</p>
           </div>
-          <button class="w-full sm:w-auto bg-sky-600/20 hover:bg-sky-600 text-sky-400 hover:text-white border border-sky-500/30 text-[11px] font-bold px-3 py-1 rounded-lg transition whitespace-nowrap text-center">
-            Audit Email &rarr;
-          </button>
+          <div class="flex flex-shrink-0 justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-800/80">
+            <a href="/scan_inbox_message/${mail.id}" class="w-full md:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md transition whitespace-nowrap">
+              <i class="fa-solid fa-microscope text-xs"></i> Audit Email
+            </a>
+          </div>
         `;
         container.appendChild(item);
       });
