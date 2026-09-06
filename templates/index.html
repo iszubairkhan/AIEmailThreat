@@ -241,6 +241,7 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Card 1: 24/7 Monitoring -->
         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
           <h4 class="text-xs sm:text-sm font-bold text-emerald-400 flex items-center gap-1.5">
             <i class="fa-solid fa-shield-check"></i> Automated 24/7 Server Daemon
@@ -253,14 +254,15 @@
           </ol>
         </div>
 
+        <!-- Card 2: Disconnect & Direct Link to Google Connections -->
         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
           <h4 class="text-xs sm:text-sm font-bold text-rose-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-power-off"></i> How to Disconnect Anytime
+            <i class="fa-solid fa-power-off"></i> Disconnecting &amp; Revoking Access
           </h4>
           <div class="space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
-            <p><strong>Closed your browser?</strong> Return to this website anytime and click <span class="text-emerald-400 font-semibold">1-Click Connect Any Mailbox</span> to restore your active session without re-granting permissions.</p>
-            <p><strong>Stop 24/7 Monitoring:</strong> On the Mailbox Triage bar above, click the red <span class="text-rose-400 font-bold px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">Disconnect</span> button.</p>
-            <p class="text-slate-400 text-[10px]">Clicking Disconnect permanently removes your credentials from the server, immediately halts background scanning, and cleans up your session.</p>
+            <p><strong>1. Stop Background Daemon:</strong> Click <span class="text-rose-400 font-bold px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">Disconnect</span> on the triage bar above to halt server monitoring and wipe active tokens instantly.</p>
+            <p><strong>2. Clear Mailbox Tags:</strong> Click <span class="text-amber-400 font-semibold">Clear Labels</span> to strip all <code>SOC-SCANNED</code> tags from your Gmail inbox.</p>
+            <p><strong>3. Permanent Google Revocation:</strong> To permanently revoke Sentinel's OAuth access, visit <a href="https://myaccount.google.com/connections" target="_blank" class="text-sky-400 underline font-semibold hover:text-sky-300">Google Connections</a> &rarr; select <em>AI Email Threat Sentinel</em> &rarr; <em>Delete all connections</em>.</p>
           </div>
         </div>
       </div>
@@ -438,7 +440,6 @@
       } else if (caseId) {
         fetchCaseData(caseId);
       } else {
-        // Probe if session already exists in memory to automatically present the triage hub
         fetch('/api/get_session_inbox')
           .then(res => res.json())
           .then(emails => {
