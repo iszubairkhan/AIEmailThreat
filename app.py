@@ -8,21 +8,22 @@ import email
 from email import policy
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.header import Header
 from email.utils import formatdate, make_msgid
 import ipaddress
 import threading
+import html
+from urllib.parse import urlencode, quote
 import time
 import requests
 import dns.resolver
 from flask import Flask, render_template, request, jsonify, redirect, session
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sih_nexora_sentinel_secret_2026")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "").strip() or os.urandom(32).hex()
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com")
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "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")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
 CASES_FILE = "cases_cache.json"
@@ -33,6 +34,15 @@ ALERTS_FILE = "sent_alerts_cache.json"
 CASES_DB = {}
 MONITORED_ACCOUNTS = {}
 SENT_ALERTS = set()
+
+# Prevent overlapping monitor runs in the same Python process.
+MONITOR_LOCK = threading.Lock()
+ALERT_FILE_LOCK = threading.Lock()
+
+# A short-lived in-memory claim set prevents two monitor passes from processing
+# the same Gmail message at the same time. Persistent SENT_ALERTS survives restarts.
+PROCESSING_MESSAGES = set()
+
 
 # -------------------------------------------------------------
 # DISK PERSISTENCE ENGINE (ACCOUNTS, CASES & ALERTS)
@@ -100,14 +110,21 @@ def load_sent_alerts():
     return set()
 
 def record_alert_dispatched(identifier):
+    """Persist an identifier safely so the same message is not alerted twice."""
     global SENT_ALERTS
     clean_id = str(identifier).strip("<>").strip()
-    SENT_ALERTS.add(clean_id)
-    try:
-        with open(ALERTS_FILE, "w", encoding="utf-8") as f:
-            json.dump(list(SENT_ALERTS), f)
-    except Exception as e:
-        print(f"Error saving alert record: {e}")
+    if not clean_id:
+        return
+
+    with ALERT_FILE_LOCK:
+        SENT_ALERTS.add(clean_id)
+        try:
+            tmp_file = f"{ALERTS_FILE}.tmp"
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump(sorted(SENT_ALERTS), f)
+            os.replace(tmp_file, ALERTS_FILE)
+        except Exception as e:
+            print(f"Error saving alert record: {e}")
 
 CASES_DB = load_cases_from_disk()
 MONITORED_ACCOUNTS = load_monitored_accounts()
@@ -140,7 +157,7 @@ def get_or_create_soc_label(headers):
         for l in labels:
             if l.get("name") == "SOC-SCANNED":
                 return l.get("id")
-        
+
         create_res = requests.post(
             "https://gmail.googleapis.com/gmail/v1/users/me/labels",
             headers=headers,
@@ -182,11 +199,16 @@ def sanitize_to_ascii(text):
     return re.sub(r"[^\x20-\x7E]", "", str(text)).strip()
 
 def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique_msg_id):
+    """Send one clean, ASCII-safe SOC alert and permanently deduplicate it."""
     global SENT_ALERTS
+
+    unique_msg_id = str(unique_msg_id).strip("<>").strip()
     unique_key = f"ALERT_SENT_{unique_msg_id}"
 
-    if unique_key in SENT_ALERTS or unique_msg_id in SENT_ALERTS:
-        return False
+    # Fast duplicate check before any network call.
+    with ALERT_FILE_LOCK:
+        if unique_key in SENT_ALERTS or unique_msg_id in SENT_ALERTS:
+            return False
 
     try:
         meta = analysis.get("metadata", {})
@@ -194,218 +216,184 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         origin = analysis.get("origin_investigation", {})
         dns_auth = analysis.get("dns_authentication", {})
 
-        score = threat.get("threat_score", 0)
-        risk_tier = threat.get("risk_tier", "ELEVATED RISK")
+        score = int(threat.get("threat_score", 0) or 0)
+        risk_tier = sanitize_to_ascii(threat.get("risk_tier", "ELEVATED RISK")) or "ELEVATED RISK"
 
         accent_color = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
-        badge_bg = "rgba(244, 63, 94, 0.15)" if score >= 70 else ("rgba(245, 158, 11, 0.15)" if score >= 40 else "rgba(16, 185, 129, 0.15)")
-        badge_border = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
+        badge_bg = "#2a1018" if score >= 70 else ("#2b210b" if score >= 40 else "#0b2a20")
 
-        raw_subj = sanitize_to_ascii(meta.get("subject", "Untitled"))[:35]
+        raw_subj = sanitize_to_ascii(meta.get("subject", "Untitled"))[:80]
         if not raw_subj:
             raw_subj = "Suspicious Message"
 
-        # Strictly ASCII subject - no emojis, no special symbols
-        subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {raw_subj}"
+        # ASCII-only subject. Do NOT use Header(..., "ascii").
+        subject_line = f"[SOC ALERT] Threat Detected - {score}% Risk - Case #{case_id}"
 
-        reasons = threat.get("threat_reasons", [])
-        if not reasons:
-            reasons = ["Clean return-path alignment and authenticated corporate delivery."]
+        # Escape every dynamic value before putting it into HTML.
+        e_subject = html.escape(raw_subj, quote=True)
+        e_sender = html.escape(sanitize_to_ascii(meta.get("from", "Unknown")), quote=True)
+        e_return = html.escape(sanitize_to_ascii(meta.get("return_path", "None")), quote=True)
+        e_ip = html.escape(sanitize_to_ascii(origin.get("ip", "Unknown")), quote=True)
+        e_city = html.escape(sanitize_to_ascii(origin.get("city", "Unknown")), quote=True)
+        e_country = html.escape(sanitize_to_ascii(origin.get("country", "Unknown")), quote=True)
+        e_node = html.escape(sanitize_to_ascii(origin.get("node_type", "Unknown")), quote=True)
+        e_spf = html.escape(sanitize_to_ascii(dns_auth.get("spf", "Neutral"))[:30], quote=True)
+        e_dmarc = html.escape(sanitize_to_ascii(dns_auth.get("dmarc", "None"))[:30], quote=True)
+        e_risk = html.escape(risk_tier, quote=True)
+        evidence = sanitize_to_ascii(meta.get("evidence_sha256", ""))
+        if not evidence:
+            evidence = hashlib.sha256(str(unique_msg_id).encode("utf-8")).hexdigest()
+        e_evidence = html.escape(evidence, quote=True)
+        e_case = html.escape(str(case_id), quote=True)
 
+        reasons = threat.get("threat_reasons", []) or [
+            "No high-confidence threat indicators were identified."
+        ]
         reasons_items = []
-        for r in reasons:
-            clean_r = sanitize_to_ascii(r)
-            reasons_items.append(f'<li style="margin-bottom: 6px; color: #cbd5e1; font-size: 12px; line-height: 1.5;">{clean_r}</li>')
+        for reason in reasons[:8]:
+            clean_reason = html.escape(sanitize_to_ascii(reason), quote=True)
+            reasons_items.append(
+                f'<li style="margin:0 0 8px 0;color:#cbd5e1;font-size:13px;line-height:1.55;">{clean_reason}</li>'
+            )
         reasons_html = "".join(reasons_items)
 
+        dashboard_url = f"https://aiemailthreat.onrender.com/?case={quote(str(case_id))}"
+
+        # ASCII-only visible text keeps the message readable even in strict mail clients.
         html_body = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexora Sentinel SOC Alert</title>
 </head>
-<body style="margin: 0; padding: 24px 0; background-color: #030712; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #0b132b; border: 1px solid #1e293b; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);">
-          <tr>
-            <td style="padding: 20px 28px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border-bottom: 1px solid #1e293b;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td>
-                    <span style="display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #38bdf8; background-color: rgba(3, 105, 161, 0.2); border: 1px solid rgba(2, 132, 199, 0.4); padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;">
-                      INCIDENT DISPATCH &bull; SIH26106
-                    </span>
-                    <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;">
-                      NEXORA SENTINEL &mdash; SOC AUDIT REPORT
-                    </h1>
-                  </td>
-                  <td align="right" valign="top">
-                    <span style="font-family: monospace; font-size: 12px; color: #94a3b8; font-weight: 700;">#{case_id}</span>
-                  </td>
-                </tr>
+<body style="margin:0;padding:28px 12px;background:#030712;font-family:Arial,Helvetica,sans-serif;color:#e5e7eb;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr><td align="center">
+      <table role="presentation" width="620" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:620px;background:#0b1220;border:1px solid #1e293b;border-radius:16px;overflow:hidden;">
+        <tr>
+          <td style="padding:26px 30px;background:#0f172a;border-bottom:1px solid #1e293b;">
+            <div style="font-size:11px;font-weight:bold;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:10px;">NEXORA SENTINEL | SIH26106</div>
+            <div style="font-size:23px;font-weight:bold;color:#ffffff;line-height:1.25;">SOC Incident Alert</div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:8px;">Automated email threat triage and forensic summary</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 30px;background:#070d1a;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td width="42%" style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;">
+                  <div style="font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Threat Score</div>
+                  <div style="font-size:36px;font-weight:bold;color:{accent_color};margin-top:5px;">{score}%</div>
+                </td>
+                <td width="4%"></td>
+                <td width="54%" style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;vertical-align:top;">
+                  <div style="font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Risk Verdict</div>
+                  <div style="margin-top:10px;display:inline-block;padding:7px 10px;border-radius:7px;background:{badge_bg};border:1px solid {accent_color};color:{accent_color};font-size:11px;font-weight:bold;">{e_risk}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 30px 20px 30px;background:#070d1a;">
+            <div style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;">
+              <div style="font-size:11px;font-weight:bold;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Message Details</div>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="5" border="0" style="font-size:12px;">
+                <tr><td width="31%" style="color:#64748b;font-weight:bold;">Case ID</td><td style="color:#f8fafc;font-family:monospace;">#{e_case}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Subject</td><td style="color:#e2e8f0;">{e_subject}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Claimed Sender</td><td style="color:#cbd5e1;font-family:monospace;word-break:break-word;">{e_sender}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Return-Path</td><td style="color:#fda4af;font-family:monospace;word-break:break-word;">{e_return}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Origin</td><td style="color:#38bdf8;font-family:monospace;">{e_ip} | {e_city}, {e_country}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Node Type</td><td style="color:#e2e8f0;">{e_node}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Authentication</td><td style="color:#cbd5e1;">SPF: <b style="color:#38bdf8;">{e_spf}</b> | DMARC: <b style="color:#e2e8f0;">{e_dmarc}</b></td></tr>
               </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 24px 28px 20px 28px; background-color: #070d1e;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
-                <tr>
-                  <td width="33%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
-                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Threat Score</div>
-                    <div style="font-size: 26px; font-weight: 900; color: {accent_color}; margin-top: 4px;">{score}%</div>
-                  </td>
-                  <td width="4%"></td>
-                  <td width="63%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
-                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Risk Verdict</div>
-                    <div style="margin-top: 6px;">
-                      <span style="display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; color: {accent_color}; background-color: {badge_bg}; border: 1px solid {badge_border}50; padding: 4px 10px; border-radius: 6px;">
-                        {risk_tier}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 28px 20px 28px;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
-                <tr>
-                  <td>
-                    <div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 6px;">
-                      Envelope Header Triage
-                    </div>
-                    <table width="100%" border="0" cellspacing="0" cellpadding="4" style="font-size: 12px;">
-                      <tr>
-                        <td width="28%" style="color: #64748b; font-weight: 600;">Subject:</td>
-                        <td style="color: #f8fafc; font-weight: 600;">{raw_subj}</td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
-                        <td style="color: #cbd5e1; font-family: monospace;">{sanitize_to_ascii(meta.get('from', 'Unknown'))}</td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Return-Path:</td>
-                        <td style="color: #f43f5e; font-family: monospace; font-weight: 600;">{sanitize_to_ascii(meta.get('return_path', 'None'))}</td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Origin Geo / IP:</td>
-                        <td style="color: #38bdf8; font-family: monospace;">
-                          {origin.get('ip', 'Unknown')} ({sanitize_to_ascii(origin.get('city', 'Unknown'))}, {sanitize_to_ascii(origin.get('country', 'Unknown'))})
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Node Type:</td>
-                        <td style="color: #e2e8f0;">{sanitize_to_ascii(origin.get('node_type', 'Corporate Relay'))}</td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Authentication:</td>
-                        <td style="color: #cbd5e1; font-size: 11px;">
-                          SPF: <strong style="color: #38bdf8;">{sanitize_to_ascii(dns_auth.get('spf', 'Neutral'))[:20]}</strong> &bull; 
-                          DMARC: <strong style="color: #e2e8f0;">{sanitize_to_ascii(dns_auth.get('dmarc', 'None'))[:18]}</strong>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 28px 20px 28px;">
-              <div style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
-                <div style="font-size: 11px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;">
-                  Detected Risk Indicators
-                </div>
-                <ul style="margin: 0; padding-left: 18px;">
-                  {reasons_html}
-                </ul>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 28px 24px 28px;">
-              <div style="background-color: #030712; border: 1px dashed #334155; border-radius: 8px; padding: 12px;">
-                <div style="font-size: 10px; font-weight: 800; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">
-                  Section 65B Forensic Evidence Seal (BSA 2023)
-                </div>
-                <div style="font-family: monospace; font-size: 10px; color: #94a3b8; word-break: break-all; margin-top: 4px;">
-                  {sanitize_to_ascii(meta.get('evidence_sha256', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'))}
-                </div>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td align="center" style="padding: 0 28px 28px 28px;">
-              <table border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td align="center" style="border-radius: 8px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
-                    <a href="https://aiemailthreat.onrender.com/?case={case_id}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 13px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 8px; letter-spacing: 0.2px;">
-                      Open Live Forensic Case Dashboard &rarr;
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 16px 28px; background-color: #030712; border-top: 1px solid #1e293b; text-align: center;">
-              <p style="margin: 0; font-size: 10px; color: #475569; line-height: 1.4;">
-                Automated triage generated by Nexora Sentinel. Real-time RFC-822 MTA hop extraction &amp; DNS verification.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 30px 20px 30px;background:#070d1a;">
+            <div style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;">
+              <div style="font-size:11px;font-weight:bold;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Detected Risk Indicators</div>
+              <ul style="margin:0;padding-left:20px;">{reasons_html}</ul>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 30px 22px 30px;background:#070d1a;">
+            <div style="padding:16px;background:#030712;border:1px dashed #334155;border-radius:10px;">
+              <div style="font-size:10px;font-weight:bold;color:#10b981;letter-spacing:1px;text-transform:uppercase;">BSA 2023 Electronic Evidence Record</div>
+              <div style="font-size:10px;color:#94a3b8;margin-top:7px;line-height:1.5;word-break:break-all;font-family:monospace;">SHA-256: {e_evidence}</div>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:4px 30px 30px 30px;background:#070d1a;">
+            <a href="{dashboard_url}" target="_blank" style="display:inline-block;padding:13px 24px;background:#2563eb;border-radius:9px;color:#ffffff;text-decoration:none;font-size:13px;font-weight:bold;">Open Forensic Case Dashboard</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 30px;background:#030712;border-top:1px solid #1e293b;text-align:center;">
+            <div style="font-size:10px;color:#64748b;line-height:1.6;">Generated by Nexora Sentinel. This is an automated defensive security notification.</div>
+            <div style="font-size:10px;color:#475569;margin-top:4px;">Case #{e_case} | SIH26106</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
   </table>
 </body>
-</html>
-"""
+</html>"""
 
         msg = MIMEMultipart("alternative")
         msg["To"] = recipient_email
         msg["From"] = f"Nexora Threat Desk <{recipient_email}>"
         msg["Reply-To"] = recipient_email
-        msg["Subject"] = Header(subject_line, "ascii").encode()
+        msg["Subject"] = subject_line
         msg["X-Nexora-Sentinel"] = "alert"
+        msg["X-Nexora-Alert-ID"] = unique_msg_id[:120]
         msg["Date"] = formatdate(localtime=True)
         gen_id = make_msgid(domain="nexora.sentinel")
         msg["Message-ID"] = gen_id
 
-        clean_gen_id = str(gen_id).strip("<>")
-        record_alert_dispatched(clean_gen_id)
-        record_alert_dispatched(unique_key)
-        record_alert_dispatched(str(unique_msg_id))
-
-        plain_text = f"NEXORA SOC ALERT\nCase ID: #{case_id}\nThreat: {risk_tier} ({score}%)\nDashboard: https://aiemailthreat.onrender.com/?case={case_id}"
+        plain_text = (
+            f"NEXORA SENTINEL SOC ALERT\n"
+            f"Case ID: #{case_id}\n"
+            f"Threat Score: {score}%\n"
+            f"Risk: {risk_tier}\n"
+            f"Subject: {raw_subj}\n"
+            f"Dashboard: {dashboard_url}\n"
+        )
         msg.attach(MIMEText(plain_text, "plain", "utf-8"))
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-        raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
-        
+        raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
+
         res = requests.post(
             "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
             headers=headers,
             json={"raw": raw_msg},
-            timeout=10
+            timeout=10,
         )
 
         if res.status_code == 200:
             data = res.json()
             new_id = data.get("id")
+
+            # Persist the source ID and generated alert ID only after Gmail accepted the send.
+            record_alert_dispatched(unique_msg_id)
+            record_alert_dispatched(unique_key)
+            record_alert_dispatched(str(gen_id))
+
             if new_id:
                 record_alert_dispatched(new_id)
                 record_alert_dispatched(f"ALERT_SENT_{new_id}")
-                # Mark dispatched alert as read instantly so it never queues
                 apply_soc_label_to_message(headers, new_id, mark_as_read=True)
+
             print(f"[SUCCESS] Dispatched SOC alert for Case #{case_id} to {recipient_email}")
             return True
-        else:
-            print(f"[FAILED] Gmail Send API: {res.status_code} - {res.text}")
-            return False
+
+        print(f"[FAILED] Gmail Send API: {res.status_code} - {res.text}")
+        return False
 
     except Exception as e:
         print(f"[ERROR] dispatch_soc_alert_email: {e}")
@@ -443,7 +431,7 @@ def extract_email_body_text(msg):
                 text_content.append(str(msg.get_payload()))
         except Exception:
             text_content.append(str(msg.get_payload()))
-            
+
     return "\n".join(text_content)
 
 def get_ip_intelligence(ip_address: str):
@@ -469,7 +457,7 @@ def get_ip_intelligence(ip_address: str):
             trusted_providers = ["google", "microsoft", "amazon", "cloudflare", "yahoo", "sendgrid", "mailgun"]
             is_trusted = any(p in isp_org_str for p in trusted_providers)
             is_vpn_dc = (res.get("hosting", False) or res.get("proxy", False) or any(k in isp_org_str for k in KNOWN_DATACENTER_ORGS)) and not is_trusted
-            
+
             lat = res.get("lat", 0.0)
             lon = res.get("lon", 0.0)
             maps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
@@ -513,10 +501,10 @@ def analyze_email_forensics(raw_bytes: bytes):
     date_header = str(msg.get('Date', 'Unknown'))
     message_id = str(msg.get('Message-ID', 'None'))
 
-    domain_match = re.search(r"@([\w.-]+)", sender)
+    domain_match = re.search(r"@([\w\.-]+)", sender)
     sender_domain = domain_match.group(1).strip(">").lower() if domain_match else ""
 
-    return_path_match = re.search(r"@([\w.-]+)", return_path)
+    return_path_match = re.search(r"@([\w\.-]+)", return_path)
     return_path_domain = return_path_match.group(1).strip(">").lower() if return_path_match else ""
 
     sender_base = get_base_domain(sender_domain)
@@ -534,7 +522,7 @@ def analyze_email_forensics(raw_bytes: bytes):
     discovered_ips = []
 
     for idx, hop_str in enumerate(received_headers):
-        ips = re.findall(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", str(hop_str))
+        ips = re.findall(r"\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\b", str(hop_str))
         public_ips = []
         for ip in ips:
             try:
@@ -543,7 +531,7 @@ def analyze_email_forensics(raw_bytes: bytes):
                     public_ips.append(ip)
             except ValueError:
                 continue
-                
+
         discovered_ips.extend(public_ips)
         geo = get_ip_intelligence(public_ips[0]) if public_ips else None
         hops.append({
@@ -576,7 +564,7 @@ def analyze_email_forensics(raw_bytes: bytes):
                     break
             except Exception:
                 pass
-        
+
         if "Configured" not in spf_status:
             spf_status = "Lookup Neutral"
 
@@ -600,14 +588,13 @@ def analyze_email_forensics(raw_bytes: bytes):
 
     body_content = extract_email_body_text(msg)
     full_text_to_scan = f"{subject}\n{body_content}"
-    
+
     found_cues = []
     for pattern in BEC_URGENCY_PATTERNS:
         matches = re.findall(pattern, full_text_to_scan, re.IGNORECASE)
         if matches:
             found_cues.extend(matches)
-
-    extracted_urls = re.findall(r'https?://[^\s<>"\'\)]+|www\.[^\s<>"\'\)]+', body_content)
+    extracted_urls = re.findall(r"https?://[^\s<>\"')]+|www\.[^\s<>\"')]+", body_content)
 
     threat_score = 0
     threat_reasons = []
@@ -683,8 +670,10 @@ def refresh_google_token(refresh_token):
     except Exception:
         return None
 
-def background_threat_monitor():
-    global MONITORED_ACCOUNTS, SENT_ALERTS
+def _background_threat_monitor():
+    """Single monitor pass. The public wrapper below prevents overlap."""
+    global MONITORED_ACCOUNTS, SENT_ALERTS, PROCESSING_MESSAGES
+
     if not MONITORED_ACCOUNTS:
         MONITORED_ACCOUNTS = load_monitored_accounts()
 
@@ -693,85 +682,138 @@ def background_threat_monitor():
 
     for email_addr, creds in list(MONITORED_ACCOUNTS.items()):
         try:
-            token = refresh_google_token(creds["refresh_token"])
+            refresh_token = creds.get("refresh_token")
+            if not refresh_token:
+                continue
+
+            token = refresh_google_token(refresh_token)
             if not token:
                 continue
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            # Strictly query unread mail, excluding any messages from oneself or containing alert flags
-            query = 'is:unread -label:SOC-SCANNED -from:me -subject:"[SOC ALERT" (in:inbox OR in:spam)'
-            list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&includeSpamTrash=true&maxResults=10"
+            # Only unread, unscanned, non-self, non-SOC-alert mail is eligible.
+            query = 'is:unread -label:SOC-SCANNED -from:me -subject:"[SOC ALERT]" (in:inbox OR in:spam)'
+            list_url = (
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages?"
+                + urlencode({"q": query, "includeSpamTrash": "true", "maxResults": "10"})
+            )
 
-            res = requests.get(list_url, headers=headers, timeout=10).json()
-            messages = res.get("messages", [])
+            res = requests.get(list_url, headers=headers, timeout=10)
+            if res.status_code != 200:
+                print(f"[MONITOR] Gmail list failed: {res.status_code} - {res.text}")
+                continue
+
+            messages = res.json().get("messages", [])
 
             for m in messages:
-                msg_id = m["id"]
+                msg_id = str(m.get("id", "")).strip()
+                if not msg_id:
+                    continue
 
-                # Deduplication check
-                if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS:
+                # Atomic-in-process claim: only one pass can process this message.
+                with ALERT_FILE_LOCK:
+                    if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS or msg_id in PROCESSING_MESSAGES:
+                        continue
+                    PROCESSING_MESSAGES.add(msg_id)
+
+                try:
+                    meta_url = (
+                        f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{quote(msg_id)}"
+                        "?format=metadata"
+                        "&metadataHeaders=Subject"
+                        "&metadataHeaders=From"
+                        "&metadataHeaders=Message-ID"
+                        "&metadataHeaders=X-Nexora-Sentinel"
+                        "&metadataHeaders=X-Nexora-Alert-ID"
+                    )
+                    meta_res = requests.get(meta_url, headers=headers, timeout=5)
+                    if meta_res.status_code != 200:
+                        continue
+
+                    meta_data = meta_res.json()
+                    h_list = meta_data.get("payload", {}).get("headers", [])
+                    header_map = {
+                        h.get("name", "").lower(): h.get("value", "")
+                        for h in h_list
+                    }
+
+                    subj = header_map.get("subject", "")
+                    sndr = header_map.get("from", "").lower()
+                    msg_uuid = header_map.get("message-id", "").strip("<>")
+                    is_nexora_header = header_map.get("x-nexora-sentinel", "").strip().lower()
+                    alert_id = header_map.get("x-nexora-alert-id", "").strip("<>").strip()
+                    snippet = str(meta_data.get("snippet", "")).lower()
+                    clean_subj = sanitize_to_ascii(subj).lower()
+
+                    # Hard circuit breaker for every alert generated by Nexora.
+                    self_markers = (
+                        is_nexora_header == "alert"
+                        or bool(alert_id)
+                        or "[soc alert]" in clean_subj
+                        or "soc incident alert" in clean_subj
+                        or "nexora sentinel" in snippet
+                        or "incident dispatch" in snippet
+                        or "nexora.sentinel" in msg_uuid.lower()
+                        or msg_uuid in SENT_ALERTS
+                        or alert_id in SENT_ALERTS
+                        or email_addr.lower() in sndr
+                    )
+                    if self_markers:
+                        apply_soc_label_to_message(headers, msg_id, mark_as_read=True)
+                        record_alert_dispatched(msg_id)
+                        if msg_uuid:
+                            record_alert_dispatched(msg_uuid)
+                        if alert_id:
+                            record_alert_dispatched(alert_id)
+                        continue
+
+                    raw_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{quote(msg_id)}?format=raw"
+                    raw_res = requests.get(raw_url, headers=headers, timeout=10)
+                    if raw_res.status_code != 200:
+                        continue
+
+                    raw_base64 = raw_res.json().get("raw", "")
+                    if not raw_base64:
+                        continue
+
+                    raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ascii"))
+                    analysis = analyze_email_forensics(raw_bytes)
+                    threat_score = int(analysis["threat_assessment"]["threat_score"])
+
+                    # Claim the source permanently before dispatch so a second pass cannot resend it.
                     apply_soc_label_to_message(headers, msg_id, mark_as_read=False)
-                    continue
-
-                meta_res = requests.get(
-                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Message-ID&metadataHeaders=X-Nexora-Sentinel",
-                    headers=headers,
-                    timeout=5
-                ).json()
-
-                h_list = meta_res.get("payload", {}).get("headers", [])
-                subj = next((h["value"] for h in h_list if h["name"].lower() == "subject"), "")
-                sndr = next((h["value"] for h in h_list if h["name"].lower() == "from"), "").lower()
-                msg_uuid = next((h["value"] for h in h_list if h["name"].lower() == "message-id"), "").strip("<>")
-                is_nexora_header = next((h["value"] for h in h_list if h["name"].lower() == "x-nexora-sentinel"), "")
-                snippet = meta_res.get("snippet", "").lower()
-
-                clean_subj = sanitize_to_ascii(subj).lower()
-
-                # Absolute circuit breaker: Drop self-sent and alert emails immediately
-                if (
-                    is_nexora_header == "alert"
-                    or "soc alert" in clean_subj
-                    or "threat detected" in clean_subj
-                    or "nexora sentinel" in snippet
-                    or "incident dispatch" in snippet
-                    or "nexora.sentinel" in msg_uuid
-                    or msg_uuid in SENT_ALERTS
-                    or email_addr.lower() in sndr
-                ):
-                    # Mark our own alert as read to kill recursion
-                    apply_soc_label_to_message(headers, msg_id, mark_as_read=True)
                     record_alert_dispatched(msg_id)
-                    record_alert_dispatched(f"ALERT_SENT_{msg_id}")
-                    continue
+                    if msg_uuid:
+                        record_alert_dispatched(msg_uuid)
 
-                raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw", headers=headers, timeout=10).json()
-                raw_base64 = raw_res.get("raw", "")
-                if not raw_base64:
-                    continue
-                raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
+                    target_email = email_addr
+                    if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
+                        target_email = configured_soc_email
 
-                analysis = analyze_email_forensics(raw_bytes)
-                threat_score = analysis["threat_assessment"]["threat_score"]
+                    if threat_score >= 40:
+                        case_id = str(uuid.uuid4())[:8]
+                        save_case_record(case_id, analysis)
+                        dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
 
-                # Label real incoming email as SCANNED without altering its unread status
-                apply_soc_label_to_message(headers, msg_id, mark_as_read=False)
-                record_alert_dispatched(msg_id)
-                record_alert_dispatched(f"ALERT_SENT_{msg_id}")
-
-                target_email = email_addr
-                if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
-                    target_email = configured_soc_email
-
-                # Automatically trigger alerts for genuine spoofed or elevated risk emails
-                if threat_score >= 40:
-                    case_id = str(uuid.uuid4())[:8]
-                    save_case_record(case_id, analysis)
-                    dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
+                finally:
+                    with ALERT_FILE_LOCK:
+                        PROCESSING_MESSAGES.discard(msg_id)
 
         except Exception as e:
-            print(f"Monitor loop error: {e}")
+            print(f"Monitor loop error for {email_addr}: {e}")
+
+
+def background_threat_monitor():
+    """Run one monitor pass only if another pass is not already running."""
+    if not MONITOR_LOCK.acquire(blocking=False):
+        print("[MONITOR] Overlapping monitor run skipped.")
+        return
+    try:
+        _background_threat_monitor()
+    finally:
+        MONITOR_LOCK.release()
+
 
 def background_threat_worker_loop():
     while True:
@@ -781,7 +823,13 @@ def background_threat_worker_loop():
             print(f"Background worker loop error: {e}")
         time.sleep(45)
 
-bg_thread = threading.Thread(target=background_threat_worker_loop, daemon=True)
+
+# Start exactly one monitor thread in this Python process.
+bg_thread = threading.Thread(
+    target=background_threat_worker_loop,
+    name="nexora-soc-monitor",
+    daemon=True,
+)
 bg_thread.start()
 
 # -------------------------------------------------------------
@@ -796,25 +844,29 @@ def home():
 def auth_login():
     if not GOOGLE_CLIENT_ID:
         return "<h3 style='color:red;font-family:sans-serif;'>OAuth Error: GOOGLE_CLIENT_ID is not configured.</h3>", 400
-        
-    scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.labels https://www.googleapis.com/auth/gmail.send"
-    
-    auth_url = (
-        f"https://accounts.google.com/o/oauth2/v2/auth?"
-        f"client_id={GOOGLE_CLIENT_ID}&"
-        f"redirect_uri={REDIRECT_URI}&"
-        f"response_type=code&"
-        f"scope={scope}&"
-        f"access_type=offline&"
-        f"prompt=consent%20select_account"
-    )
+
+    scope = " ".join([
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/gmail.labels",
+        "https://www.googleapis.com/auth/gmail.send",
+    ])
+
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode({
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+        "scope": scope,
+        "access_type": "offline",
+        "prompt": "consent select_account",
+    })
     return redirect(auth_url)
 
 @app.route('/auth/callback')
 def auth_callback():
     code = request.args.get('code')
     error = request.args.get('error')
-    
+
     if error:
         return f"<h3 style='color:red;font-family:sans-serif;'>Google Authorization Refused: {error}</h3>", 400
     if not code:
@@ -828,7 +880,7 @@ def auth_callback():
         "redirect_uri": REDIRECT_URI,
         "grant_type": "authorization_code"
     }
-    
+
     token_res = requests.post(token_url, data=token_data, timeout=10).json()
     access_token = token_res.get("access_token")
     refresh_token = token_res.get("refresh_token")
@@ -856,7 +908,7 @@ def auth_callback():
     if refresh_token:
         save_monitored_account(user_email, refresh_token)
 
-    list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox%20-subject:"SOC ALERT"'
+    list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' + urlencode({'maxResults': '10', 'q': 'in:inbox -subject:"[SOC ALERT]"'})
     list_res = requests.get(list_url, headers=headers, timeout=10).json()
     messages_summary = list_res.get("messages", [])
 
@@ -867,11 +919,11 @@ def auth_callback():
     for m in messages_summary:
         try:
             msg_meta = requests.get(
-                f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
+                f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{quote(m['id'])}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
                 headers=headers,
                 timeout=3
             ).json()
-            
+
             headers_list = msg_meta.get("payload", {}).get("headers", [])
             subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "(No Subject)")
             sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
@@ -903,11 +955,9 @@ def refresh_inbox():
     if not access_token:
         return jsonify({"error": "No active session"}), 401
 
-    threading.Thread(target=background_threat_monitor).start()
-
     headers = {"Authorization": f"Bearer {access_token}"}
     try:
-        list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=is:inbox%20-subject:"SOC ALERT"'
+        list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' + urlencode({'maxResults': '10', 'q': 'in:inbox -subject:"[SOC ALERT]"'})
         list_res = requests.get(list_url, headers=headers, timeout=10).json()
         messages_summary = list_res.get("messages", [])
 
@@ -915,11 +965,11 @@ def refresh_inbox():
         for m in messages_summary:
             try:
                 msg_meta = requests.get(
-                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{quote(m['id'])}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
                     headers=headers,
                     timeout=3
                 ).json()
-                
+
                 headers_list = msg_meta.get("payload", {}).get("headers", [])
                 subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "(No Subject)")
                 sender = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "Unknown Sender")
@@ -974,7 +1024,7 @@ def scan_inbox_message(msg_id):
     headers = {"Authorization": f"Bearer {access_token}"}
     msg_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw"
     msg_res = requests.get(msg_url, headers=headers, timeout=10).json()
-    
+
     raw_base64 = msg_res.get("raw", "")
     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
 
@@ -991,7 +1041,7 @@ def scan_inbox_message(msg_id):
 def auth_logout():
     global MONITORED_ACCOUNTS
     user_email = session.get('user_email')
-    
+
     if user_email and user_email in MONITORED_ACCOUNTS:
         MONITORED_ACCOUNTS.pop(user_email, None)
         try:
@@ -1004,7 +1054,7 @@ def auth_logout():
     session.pop('access_token', None)
     session.pop('inbox_list', None)
     session.pop('user_email', None)
-    
+
     return redirect('/?status=disconnected')
 
 @app.route('/api/get_session_inbox')
@@ -1024,12 +1074,12 @@ def cleanup_labels():
         target_label = next((l for l in labels if l["name"] == "SOC-SCANNED"), None)
 
         if target_label:
-            delete_url = f"https://gmail.googleapis.com/gmail/v1/users/me/labels/{target_label['id']}"
+            delete_url = f"https://gmail.googleapis.com/gmail/v1/users/me/labels/{quote(target_label['id'])}"
             requests.delete(delete_url, headers=headers, timeout=5)
             return jsonify({"status": "success", "message": "SOC-SCANNED label deleted."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
     return jsonify({"status": "success", "message": "No label found to remove."})
 
 @app.route('/api/clear_cache_locks', methods=['POST', 'GET'])
@@ -1048,15 +1098,15 @@ def scan_raw():
     data = request.get_json(silent=True)
     if not data or 'raw_email' not in data:
         return jsonify({"error": "Missing raw_email"}), 400
-    
+
     raw_content = data['raw_email'].encode('utf-8')
     result = analyze_email_forensics(raw_content)
-    
+
     case_id = str(uuid.uuid4())[:8]
     save_case_record(case_id, result)
-    
+
     result['case_id'] = case_id
-    result['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
+    result['report_url'] = f"https://aiemailthreat.onrender.com/?case={quote(str(case_id))}"
     return jsonify(result)
 
 @app.route('/scan_demo', methods=['POST', 'GET'])
@@ -1081,7 +1131,7 @@ def scan_demo():
     case_id = "c66930bf"
     save_case_record(case_id, analysis)
     analysis['case_id'] = case_id
-    analysis['report_url'] = f"https://aiemailthreat.onrender.com/?case={case_id}"
+    analysis['report_url'] = f"https://aiemailthreat.onrender.com/?case={quote(str(case_id))}"
     return jsonify(analysis)
 
 @app.route('/api/get_case/<case_id>', methods=['GET'])
