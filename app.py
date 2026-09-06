@@ -196,7 +196,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         if not clean_subj:
             clean_subj = "Urgent"
 
-        # Pure ASCII subject line: Zero question marks possible
+        # Pure ASCII subject header - eliminates any diamond question mark glyphs
         subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {clean_subj}"
 
         reasons = threat.get("threat_reasons", [])
@@ -391,6 +391,16 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 record_alert_dispatched(new_id)
                 record_alert_dispatched(f"ALERT_SENT_{new_id}")
                 apply_soc_label_to_message(headers, new_id)
+                # Auto-mark sent alert as read in the mailbox immediately
+                try:
+                    requests.post(
+                        f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{new_id}/modify",
+                        headers=headers,
+                        json={"removeLabelIds": ["UNREAD"]},
+                        timeout=5
+                    )
+                except Exception:
+                    pass
             print(f"[SUCCESS] Alert email dispatched to {recipient_email}")
             return True
         else:
@@ -689,9 +699,9 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            # Explicitly reject alerts and self-sent emails from the query
+            # Loop break: explicitly omit [SOC ALERT] subjects and include Spam folder
             query = 'is:unread -label:SOC-SCANNED -from:me -subject:"[SOC ALERT" (in:inbox OR in:spam)'
-            list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&includeSpamTrash=true&maxResults=5"
+            list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&includeSpamTrash=true&maxResults=10"
 
             res = requests.get(list_url, headers=headers, timeout=10).json()
             messages = res.get("messages", [])
@@ -794,7 +804,7 @@ def auth_login():
         f"response_type=code&"
         f"scope={scope}&"
         f"access_type=offline&"
-        f"prompt=select_account"
+        f"prompt=consent%20select_account"
     )
     return redirect(auth_url)
 
