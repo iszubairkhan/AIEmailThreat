@@ -175,7 +175,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     unique_key = f"ALERT_SENT_{unique_msg_id}"
 
     if unique_key in SENT_ALERTS or unique_msg_id in SENT_ALERTS:
-        print(f"[SKIP] Alert for {unique_msg_id} already sent.")
+        print(f"[SKIP] Alert for {unique_msg_id} already dispatched.")
         return False
 
     try:
@@ -191,43 +191,45 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         badge_bg = "rgba(244, 63, 94, 0.15)" if score >= 70 else ("rgba(245, 158, 11, 0.15)" if score >= 40 else "rgba(16, 185, 129, 0.15)")
         badge_border = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
 
-        # Strip emojis and non-ASCII to prevent ?????? corruption
+        # Strip everything except basic standard letters, numbers and punctuation
         raw_subj = meta.get("subject", "Untitled")
-        clean_subj = re.sub(r"[^\x20-\x7E]", "", raw_subj).strip()[:35]
+        clean_subj = re.sub(r"[^a-zA-Z0-9\s.,!?:;_-]", "", raw_subj).strip()[:35]
         if not clean_subj:
             clean_subj = "Suspicious Message"
 
+        # Pure ASCII subject line - impossible to show diamond question marks
         subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - Case #{case_id}"
 
         reasons = threat.get("threat_reasons", [])
         if not reasons:
-            reasons = ["Verified Sender: Clean return-path alignment and authenticated corporate delivery."]
+            reasons = ["Clean return-path alignment and authenticated corporate delivery."]
 
-        reasons_html = "".join([
-            f'<li style="margin-bottom: 8px; color: #cbd5e1; font-size: 12px; line-height: 1.5;">{re.sub(r"[^\\x20-\\x7E]", "", str(r))}</li>'
-            for r in reasons
-        ])
+        reasons_items = []
+        for r in reasons:
+            clean_r = re.sub(r"[^a-zA-Z0-9\s.,!?:;/()#_-]", "", str(r))
+            reasons_items.append(f'<li style="margin-bottom: 8px; color: #cbd5e1; font-size: 12px; line-height: 1.5;">{clean_r}</li>')
+        reasons_html = "".join(reasons_items)
 
+        # 100% ASCII HTML template - Navy Dark Mode exactly like Image 2
         html_body = f"""<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Nexora Sentinel Alert</title>
 </head>
 <body style="margin: 0; padding: 24px 0; background-color: #030712; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #0b132b; border: 1px solid #1e293b; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #0b132b; border: 1px solid #1e293b; border-radius: 14px; overflow: hidden;">
           <tr>
-            <td style="padding: 22px 28px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border-bottom: 1px solid #1e293b;">
+            <td style="padding: 22px 28px; background: #0f172a; border-bottom: 1px solid #1e293b;">
               <table width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                   <td>
                     <span style="display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #38bdf8; background-color: rgba(3, 105, 161, 0.25); border: 1px solid rgba(2, 132, 199, 0.4); padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;">
                       INCIDENT DISPATCH - SIH26106
                     </span>
-                    <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.2px;">
+                    <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff;">
                       NEXORA SENTINEL - SOC AUDIT REPORT
                     </h1>
                   </td>
@@ -274,11 +276,11 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                       </tr>
                       <tr>
                         <td style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
-                        <td style="color: #cbd5e1; font-family: monospace;">{meta.get('from', 'Unknown')}</td>
+                        <td style="color: #cbd5e1; font-family: monospace;">{re.sub(r'[^a-zA-Z0-9\s@.<>_-]', '', str(meta.get('from', 'Unknown')))}</td>
                       </tr>
                       <tr>
                         <td style="color: #64748b; font-weight: 600;">Return-Path:</td>
-                        <td style="color: #f43f5e; font-family: monospace; font-weight: 600;">{meta.get('return_path', 'None')}</td>
+                        <td style="color: #f43f5e; font-family: monospace; font-weight: 600;">{re.sub(r'[^a-zA-Z0-9\s@.<>_-]', '', str(meta.get('return_path', 'None')))}</td>
                       </tr>
                       <tr>
                         <td style="color: #64748b; font-weight: 600;">Origin Geo / IP:</td>
@@ -293,8 +295,8 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                       <tr>
                         <td style="color: #64748b; font-weight: 600;">Authentication:</td>
                         <td style="color: #cbd5e1; font-size: 11px;">
-                          SPF: <strong style="color: #38bdf8;">{dns_auth.get('spf', 'Neutral')[:20]}</strong> | 
-                          DMARC: <strong style="color: #e2e8f0;">{dns_auth.get('dmarc', 'None')[:18]}</strong>
+                          SPF: <strong style="color: #38bdf8;">{re.sub(r'[^a-zA-Z0-9\s_=-]', '', str(dns_auth.get('spf', 'Neutral')))[:20]}</strong> | 
+                          DMARC: <strong style="color: #e2e8f0;">{re.sub(r'[^a-zA-Z0-9\s_=-]', '', str(dns_auth.get('dmarc', 'None')))[:18]}</strong>
                         </td>
                       </tr>
                     </table>
@@ -331,9 +333,9 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             <td align="center" style="padding: 0 28px 28px 28px;">
               <table border="0" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td align="center" style="border-radius: 8px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+                  <td align="center" style="border-radius: 8px; background: #0284c7;">
                     <a href="https://aiemailthreat.onrender.com/?case={case_id}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 13px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 8px;">
-                      Open Live Forensic Case Dashboard &rarr;
+                      Open Live Forensic Case Dashboard
                     </a>
                   </td>
                 </tr>
@@ -352,22 +354,24 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         msg["To"] = recipient_email
         msg["From"] = f"Nexora Threat Desk <{recipient_email}>"
         msg["Reply-To"] = recipient_email
-        msg["Subject"] = Header(subject_line, "utf-8")
+        # Enforce pure 7-bit ASCII on headers so Gmail can never produce ????
+        msg["Subject"] = Header(subject_line, "ascii").encode()
         msg["X-Nexora-Sentinel"] = "alert"
         msg["Date"] = formatdate(localtime=True)
         gen_id = make_msgid(domain="nexora.sentinel")
         msg["Message-ID"] = gen_id
 
-        # Record generated ID to prevent self-triggering
+        # Record this ID before sending to break loops
         clean_gen_id = str(gen_id).strip("<>")
         record_alert_dispatched(clean_gen_id)
-        record_alert_dispatched(f"ALERT_SENT_{unique_msg_id}")
+        record_alert_dispatched(unique_key)
+        record_alert_dispatched(str(unique_msg_id))
 
-        plain_text = f"NEXORA SOC ALERT\nCase ID: #{case_id}\nThreat: {risk_tier} ({score}%)\nDashboard: https://aiemailthreat.onrender.com/?case={case_id}"
-        msg.attach(MIMEText(plain_text, "plain", "utf-8"))
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
+        plain_text = f"NEXORA SOC ALERT - Case #{case_id}\nThreat: {risk_tier} ({score}%)\nDashboard: https://aiemailthreat.onrender.com/?case={case_id}"
+        msg.attach(MIMEText(plain_text, "plain", "us-ascii"))
+        msg.attach(MIMEText(html_body, "html", "us-ascii"))
 
-        raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+        raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
         
         res = requests.post(
             "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
@@ -383,16 +387,15 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 record_alert_dispatched(new_id)
                 record_alert_dispatched(f"ALERT_SENT_{new_id}")
                 apply_soc_label_to_message(headers, new_id)
-            print(f"[SUCCESS] Alert email dispatched to {recipient_email}")
+            print(f"[SUCCESS] Dispatched alert for Case #{case_id} to {recipient_email}")
             return True
         else:
-            print(f"[FAILED] Gmail Send API: {res.status_code} - {res.text}")
+            print(f"[FAILED] Send API Error: {res.status_code} - {res.text}")
             return False
 
     except Exception as e:
         print(f"[ERROR] dispatch_soc_alert_email: {e}")
         return False
-
 # -------------------------------------------------------------
 # 2. FORENSIC & IP INTELLIGENCE ENGINES
 # -------------------------------------------------------------
