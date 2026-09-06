@@ -6,7 +6,9 @@ import base64
 import hashlib
 import email
 from email import policy
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.header import Header
 from email.utils import formatdate, make_msgid
 import ipaddress
 import threading
@@ -173,9 +175,8 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     unique_key = f"ALERT_SENT_{unique_msg_id}"
 
     if unique_key in SENT_ALERTS:
+        print(f"Skipping duplicate dispatch: {unique_key} already recorded.")
         return False
-
-    record_alert_dispatched(unique_key)
 
     try:
         meta = analysis.get("metadata", {})
@@ -190,7 +191,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         badge_bg = "rgba(244, 63, 94, 0.15)" if score >= 70 else ("rgba(245, 158, 11, 0.15)" if score >= 40 else "rgba(16, 185, 129, 0.15)")
         badge_border = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
 
-        # PURE ASCII: Eliminates black diamond ? characters
         clean_raw_subj = re.sub(r"[^\x20-\x7E]", "", meta.get("subject", "Untitled"))[:35]
         subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {clean_raw_subj}"
 
@@ -360,7 +360,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         gen_id = make_msgid(domain="nexora.sentinel")
         msg["Message-ID"] = gen_id
 
-        # Mark custom ID to suppress any potential bounce
         record_alert_dispatched(str(gen_id).strip("<>"))
 
         plain_text = f"NEXORA SOC ALERT\nCase ID: #{case_id}\nThreat: {risk_tier} ({score}%)\nDashboard: https://aiemailthreat.onrender.com/?case={case_id}"
@@ -368,24 +367,30 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
-        send_res = requests.post(
+        
+        res = requests.post(
             "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
             headers=headers,
             json={"raw": raw_msg},
             timeout=10
-        ).json()
+        )
 
-        # Tag the newly dispatched alert with SOC-SCANNED immediately
-        new_sent_id = send_res.get("id")
-        if new_sent_id:
-            record_alert_dispatched(new_sent_id)
-            record_alert_dispatched(f"ALERT_SENT_{new_sent_id}")
-            apply_soc_label_to_message(headers, new_sent_id)
+        if res.status_code == 200:
+            data = res.json()
+            new_id = data.get("id")
+            if new_id:
+                record_alert_dispatched(new_id)
+                record_alert_dispatched(f"ALERT_SENT_{new_id}")
+                apply_soc_label_to_message(headers, new_id)
+            record_alert_dispatched(unique_key)
+            print(f"Alert successfully dispatched to {recipient_email}")
             return True
+        else:
+            print(f"Gmail Send API Failed: {res.status_code} - {res.text}")
+            return False
 
-        return False
     except Exception as e:
-        print(f"Alert dispatch error: {e}")
+        print(f"Alert dispatch exception: {e}")
         return False
 
 # -------------------------------------------------------------
@@ -676,8 +681,7 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            # 1. Broad Query: Exclude sent items and existing scanned messages
-            query = "is:unread -is:sent -label:SOC-SCANNED"
+            query = "is:unread -label:SOC-SCANNED"
             list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&maxResults=5"
 
             res = requests.get(list_url, headers=headers, timeout=10).json()
@@ -686,12 +690,10 @@ def background_threat_monitor():
             for m in messages:
                 msg_id = m["id"]
 
-                # 2. Lock check: Skip previously analyzed or dispatched messages
                 if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS:
                     apply_soc_label_to_message(headers, msg_id)
                     continue
 
-                # 3. Fast Metadata Check
                 meta_res = requests.get(
                     f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Message-ID",
                     headers=headers,
@@ -706,13 +708,11 @@ def background_threat_monitor():
 
                 clean_subj = re.sub(r"[^a-zA-Z0-9\s:_-]", "", subj).lower()
 
-                # 4. Strict Self-Alert Drop: Never re-audit an outgoing alert
                 if (
                     "soc alert" in clean_subj
                     or "threat detected" in clean_subj
                     or "nexora sentinel" in snippet
                     or "incident dispatch" in snippet
-                    or "section 65b forensic" in snippet
                     or "nexora.sentinel" in msg_uuid
                     or msg_uuid in SENT_ALERTS
                 ):
@@ -721,7 +721,6 @@ def background_threat_monitor():
                     record_alert_dispatched(f"ALERT_SENT_{msg_id}")
                     continue
 
-                # 5. Analyze External Threat Email
                 raw_res = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw", headers=headers, timeout=10).json()
                 raw_base64 = raw_res.get("raw", "")
                 if not raw_base64:
@@ -731,11 +730,9 @@ def background_threat_monitor():
                 analysis = analyze_email_forensics(raw_bytes)
                 threat_score = analysis["threat_assessment"]["threat_score"]
 
-                # Mark processed immediately before sending out alerts
                 apply_soc_label_to_message(headers, msg_id)
                 record_alert_dispatched(msg_id)
 
-                # Send to configured SOC email or current connected mailbox
                 target_email = email_addr
                 if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
                     target_email = configured_soc_email
@@ -743,12 +740,11 @@ def background_threat_monitor():
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
-                    # Sends alert directly to the same email address without looping
                     dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
 
         except Exception as e:
             print(f"Monitor loop error: {e}")
-            
+
 def background_threat_worker_loop():
     while True:
         try:
