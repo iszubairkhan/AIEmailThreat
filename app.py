@@ -570,7 +570,7 @@ def background_threat_monitor():
 
         except Exception as e:
             print(f"Monitor loop error: {e}")
-
+            
 def background_threat_worker_loop():
     while True:
         try:
