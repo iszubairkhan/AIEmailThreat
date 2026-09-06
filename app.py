@@ -156,13 +156,15 @@ def get_or_create_soc_label(headers):
         print(f"Error managing SOC label: {e}")
         return None
 
-def apply_soc_label_to_message(headers, msg_id):
-    """Adds the SOC-SCANNED label WITHOUT marking the scanned email as read."""
+def apply_soc_label_to_message(headers, msg_id, mark_as_read=False):
+    """Applies SOC-SCANNED label. Only removes UNREAD if explicitly instructed."""
     try:
         label_id = get_or_create_soc_label(headers)
         body = {}
         if label_id:
             body["addLabelIds"] = [label_id]
+        if mark_as_read:
+            body["removeLabelIds"] = ["UNREAD"]
         if body:
             requests.post(
                 f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}/modify",
@@ -171,7 +173,13 @@ def apply_soc_label_to_message(headers, msg_id):
                 timeout=5
             )
     except Exception as e:
-        print(f"Error applying SOC label: {e}")
+        print(f"Error modifying message {msg_id}: {e}")
+
+def sanitize_to_ascii(text):
+    """Enforces strict ASCII representation to kill question marks permanently."""
+    if not text:
+        return ""
+    return re.sub(r"[^\x20-\x7E]", "", str(text)).strip()
 
 def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique_msg_id):
     global SENT_ALERTS
@@ -193,12 +201,12 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         badge_bg = "rgba(244, 63, 94, 0.15)" if score >= 70 else ("rgba(245, 158, 11, 0.15)" if score >= 40 else "rgba(16, 185, 129, 0.15)")
         badge_border = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
 
-        raw_subj = meta.get("subject", "Untitled")
-        clean_subj = re.sub(r"[^a-zA-Z0-9\s.,!?:;_-]", "", raw_subj).strip()[:35]
-        if not clean_subj:
-            clean_subj = "Urgent"
+        raw_subj = sanitize_to_ascii(meta.get("subject", "Untitled"))[:35]
+        if not raw_subj:
+            raw_subj = "Suspicious Message"
 
-        subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {clean_subj}"
+        # Strictly ASCII subject - no emojis, no special symbols
+        subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {raw_subj}"
 
         reasons = threat.get("threat_reasons", [])
         if not reasons:
@@ -206,7 +214,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
 
         reasons_items = []
         for r in reasons:
-            clean_r = re.sub(r"[^a-zA-Z0-9\s.,!?:;/()#_-]", "", str(r))
+            clean_r = sanitize_to_ascii(r)
             reasons_items.append(f'<li style="margin-bottom: 6px; color: #cbd5e1; font-size: 12px; line-height: 1.5;">{clean_r}</li>')
         reasons_html = "".join(reasons_items)
 
@@ -272,31 +280,31 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                     <table width="100%" border="0" cellspacing="0" cellpadding="4" style="font-size: 12px;">
                       <tr>
                         <td width="28%" style="color: #64748b; font-weight: 600;">Subject:</td>
-                        <td style="color: #f8fafc; font-weight: 600;">{clean_subj}</td>
+                        <td style="color: #f8fafc; font-weight: 600;">{raw_subj}</td>
                       </tr>
                       <tr>
-                        <td width="28%" style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
-                        <td style="color: #cbd5e1; font-family: monospace;">{re.sub(r'[^a-zA-Z0-9\s@.<>_-]', '', str(meta.get('from', 'Unknown')))}</td>
+                        <td style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
+                        <td style="color: #cbd5e1; font-family: monospace;">{sanitize_to_ascii(meta.get('from', 'Unknown'))}</td>
                       </tr>
                       <tr>
-                        <td width="28%" style="color: #64748b; font-weight: 600;">Return-Path:</td>
-                        <td style="color: #f43f5e; font-family: monospace; font-weight: 600;">{re.sub(r'[^a-zA-Z0-9\s@.<>_-]', '', str(meta.get('return_path', 'None')))}</td>
+                        <td style="color: #64748b; font-weight: 600;">Return-Path:</td>
+                        <td style="color: #f43f5e; font-family: monospace; font-weight: 600;">{sanitize_to_ascii(meta.get('return_path', 'None'))}</td>
                       </tr>
                       <tr>
                         <td style="color: #64748b; font-weight: 600;">Origin Geo / IP:</td>
                         <td style="color: #38bdf8; font-family: monospace;">
-                          {origin.get('ip', 'Unknown')} ({origin.get('city', 'Unknown')}, {origin.get('country', 'Unknown')})
+                          {origin.get('ip', 'Unknown')} ({sanitize_to_ascii(origin.get('city', 'Unknown'))}, {sanitize_to_ascii(origin.get('country', 'Unknown'))})
                         </td>
                       </tr>
                       <tr>
                         <td style="color: #64748b; font-weight: 600;">Node Type:</td>
-                        <td style="color: #e2e8f0;">{origin.get('node_type', 'Corporate Relay')}</td>
+                        <td style="color: #e2e8f0;">{sanitize_to_ascii(origin.get('node_type', 'Corporate Relay'))}</td>
                       </tr>
                       <tr>
                         <td style="color: #64748b; font-weight: 600;">Authentication:</td>
                         <td style="color: #cbd5e1; font-size: 11px;">
-                          SPF: <strong style="color: #38bdf8;">{re.sub(r'[^a-zA-Z0-9\s_=-]', '', str(dns_auth.get('spf', 'Neutral')))[:20]}</strong> &bull; 
-                          DMARC: <strong style="color: #e2e8f0;">{re.sub(r'[^a-zA-Z0-9\s_=-]', '', str(dns_auth.get('dmarc', 'None')))[:18]}</strong>
+                          SPF: <strong style="color: #38bdf8;">{sanitize_to_ascii(dns_auth.get('spf', 'Neutral'))[:20]}</strong> &bull; 
+                          DMARC: <strong style="color: #e2e8f0;">{sanitize_to_ascii(dns_auth.get('dmarc', 'None'))[:18]}</strong>
                         </td>
                       </tr>
                     </table>
@@ -324,7 +332,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                   Section 65B Forensic Evidence Seal (BSA 2023)
                 </div>
                 <div style="font-family: monospace; font-size: 10px; color: #94a3b8; word-break: break-all; margin-top: 4px;">
-                  {meta.get('evidence_sha256', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')}
+                  {sanitize_to_ascii(meta.get('evidence_sha256', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'))}
                 </div>
               </div>
             </td>
@@ -391,18 +399,9 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             if new_id:
                 record_alert_dispatched(new_id)
                 record_alert_dispatched(f"ALERT_SENT_{new_id}")
-                apply_soc_label_to_message(headers, new_id)
-                # Auto-mark ONLY the generated alert email as read so it won't loop
-                try:
-                    requests.post(
-                        f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{new_id}/modify",
-                        headers=headers,
-                        json={"removeLabelIds": ["UNREAD"]},
-                        timeout=5
-                    )
-                except Exception:
-                    pass
-            print(f"[SUCCESS] Alert email dispatched to {recipient_email}")
+                # Mark dispatched alert as read instantly so it never queues
+                apply_soc_label_to_message(headers, new_id, mark_as_read=True)
+            print(f"[SUCCESS] Dispatched SOC alert for Case #{case_id} to {recipient_email}")
             return True
         else:
             print(f"[FAILED] Gmail Send API: {res.status_code} - {res.text}")
@@ -700,7 +699,7 @@ def background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            # Polls Inbox and Spam for unread threats, explicitly ignoring alerts and self-sent mail
+            # Strictly query unread mail, excluding any messages from oneself or containing alert flags
             query = 'is:unread -label:SOC-SCANNED -from:me -subject:"[SOC ALERT" (in:inbox OR in:spam)'
             list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?q={requests.utils.quote(query)}&includeSpamTrash=true&maxResults=10"
 
@@ -712,7 +711,7 @@ def background_threat_monitor():
 
                 # Deduplication check
                 if msg_id in SENT_ALERTS or f"ALERT_SENT_{msg_id}" in SENT_ALERTS:
-                    apply_soc_label_to_message(headers, msg_id)
+                    apply_soc_label_to_message(headers, msg_id, mark_as_read=False)
                     continue
 
                 meta_res = requests.get(
@@ -728,9 +727,9 @@ def background_threat_monitor():
                 is_nexora_header = next((h["value"] for h in h_list if h["name"].lower() == "x-nexora-sentinel"), "")
                 snippet = meta_res.get("snippet", "").lower()
 
-                clean_subj = re.sub(r"[^a-zA-Z0-9\s:_-]", "", subj).lower()
+                clean_subj = sanitize_to_ascii(subj).lower()
 
-                # Anti-loop check: ignore any alert emails or messages sent from self
+                # Absolute circuit breaker: Drop self-sent and alert emails immediately
                 if (
                     is_nexora_header == "alert"
                     or "soc alert" in clean_subj
@@ -741,7 +740,8 @@ def background_threat_monitor():
                     or msg_uuid in SENT_ALERTS
                     or email_addr.lower() in sndr
                 ):
-                    apply_soc_label_to_message(headers, msg_id)
+                    # Mark our own alert as read to kill recursion
+                    apply_soc_label_to_message(headers, msg_id, mark_as_read=True)
                     record_alert_dispatched(msg_id)
                     record_alert_dispatched(f"ALERT_SENT_{msg_id}")
                     continue
@@ -755,8 +755,8 @@ def background_threat_monitor():
                 analysis = analyze_email_forensics(raw_bytes)
                 threat_score = analysis["threat_assessment"]["threat_score"]
 
-                # Apply label (without marking as read) to mark it scanned
-                apply_soc_label_to_message(headers, msg_id)
+                # Label real incoming email as SCANNED without altering its unread status
+                apply_soc_label_to_message(headers, msg_id, mark_as_read=False)
                 record_alert_dispatched(msg_id)
                 record_alert_dispatched(f"ALERT_SENT_{msg_id}")
 
@@ -764,7 +764,7 @@ def background_threat_monitor():
                 if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
                     target_email = configured_soc_email
 
-                # Automated dispatch when spoofed/threat email arrives
+                # Automatically trigger alerts for genuine spoofed or elevated risk emails
                 if threat_score >= 40:
                     case_id = str(uuid.uuid4())[:8]
                     save_case_record(case_id, analysis)
@@ -966,7 +966,7 @@ def set_soc_alert_email():
 
 @app.route('/scan_inbox_message/<msg_id>')
 def scan_inbox_message(msg_id):
-    """Audits email from UI and displays dashboard without sending an email alert."""
+    """Audits email manually and shows the dashboard. Zero email alerts are dispatched."""
     access_token = session.get('access_token')
     if not access_token:
         return redirect('/auth/login')
@@ -978,7 +978,8 @@ def scan_inbox_message(msg_id):
     raw_base64 = msg_res.get("raw", "")
     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ASCII"))
 
-    apply_soc_label_to_message(headers, msg_id)
+    # Apply tag to show message was audited; leave UNREAD status untouched
+    apply_soc_label_to_message(headers, msg_id, mark_as_read=False)
 
     analysis = analyze_email_forensics(raw_bytes)
     case_id = str(uuid.uuid4())[:8]
@@ -996,7 +997,7 @@ def auth_logout():
         try:
             with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
                 json.dump(MONITORED_ACCOUNTS, f)
-            print(f"[DAEMON STOPPED] Completely unlinked and removed {user_email} from 24/7 background worker.")
+            print(f"[DAEMON STOPPED] Removed {user_email} from background monitor.")
         except Exception as e:
             print(f"Error saving accounts cache on logout: {e}")
 
