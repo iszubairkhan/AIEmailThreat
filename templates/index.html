@@ -56,6 +56,9 @@
   <!-- Main Container -->
   <main class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-6 flex-grow space-y-5">
 
+    <!-- Disconnect / Status Notification Banner -->
+    <div id="statusAlertBanner" class="hidden p-3.5 rounded-xl border flex items-center justify-between text-xs font-semibold shadow-lg transition duration-200"></div>
+
     <!-- Hero Card -->
     <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-8 shadow-2xl relative overflow-hidden text-center space-y-4">
       <div class="absolute -right-16 -top-16 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -88,7 +91,8 @@
       <!-- Session Bar -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-slate-950 p-3 rounded-xl border border-slate-800">
         <div class="flex items-center gap-2 text-xs text-slate-300 font-semibold">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 animate-pulse-slow"></span> Active 24/7 Mailbox Connected
+          <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 animate-pulse-slow"></span>
+          <span>Active 24/7 Mailbox: <strong id="connectedUserBadge" class="text-sky-400 font-mono">Connected</strong></span>
         </div>
         <div class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           <button onclick="refreshInboxFeed()" id="refreshInboxBtn" class="flex-1 sm:flex-none text-center bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-sky-500/30 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
@@ -98,7 +102,7 @@
             <i class="fa-solid fa-broom text-amber-400"></i> Clear Labels
           </button>
           <a href="/auth/logout" class="flex-1 sm:flex-none text-center bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-[11px] font-bold px-3 py-1.5 rounded-lg border border-rose-500/30 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
-            <i class="fa-solid fa-right-from-bracket"></i> Disconnect
+            <i class="fa-solid fa-power-off"></i> Disconnect
           </a>
         </div>
       </div>
@@ -229,34 +233,34 @@
           <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
             <i class="fa-solid fa-headset text-sky-400"></i> Sentinel Help Desk &amp; Quick Guide
           </h3>
-          <p class="text-[11px] text-slate-400 mt-0.5">Automated background monitoring &amp; session management.</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Automated background monitoring &amp; session management instructions.</p>
         </div>
         <span class="text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-full font-bold">
-          Docs
+          Documentation
         </span>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
           <h4 class="text-xs sm:text-sm font-bold text-emerald-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-shield-check"></i> Automated 24/7 Protection
+            <i class="fa-solid fa-shield-check"></i> Automated 24/7 Server Daemon
           </h4>
           <ol class="text-[11px] text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
-            <li>Click <strong>1-Click Connect Any Mailbox</strong> above and grant read access.</li>
-            <li>Your mailbox is automatically enrolled in our server-side 24/7 daemon worker.</li>
-            <li>All incoming unread emails are scanned without local software or manual scripts.</li>
-            <li>High-risk threats generate Section 65B forensic hash logs and alert the SOC desk.</li>
+            <li>Click <strong>1-Click Connect Any Mailbox</strong> to link your Gmail account.</li>
+            <li>Your inbox is audited 24/7 in the cloud—<strong>you can safely close this browser window</strong>.</li>
+            <li>All incoming unread threats are audited automatically every 45 seconds without client software.</li>
+            <li>High-risk incidents (&ge; 40%) generate Section 65B forensic hash logs and dispatch email alerts.</li>
           </ol>
         </div>
 
         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
           <h4 class="text-xs sm:text-sm font-bold text-rose-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-circle-stop"></i> Disconnecting &amp; Revoking Access
+            <i class="fa-solid fa-power-off"></i> How to Disconnect Anytime
           </h4>
-          <div class="space-y-1 text-[11px] text-slate-300 leading-relaxed">
-            <p><strong>Disconnect Web:</strong> Click <span class="text-rose-400 font-semibold">Disconnect</span> on the triage hub to clear your session.</p>
-            <p><strong>Clear Labels:</strong> Click <span class="text-amber-400 font-semibold">Clear Labels</span> to delete all SOC triage tags.</p>
-            <p><strong>Revoke App:</strong> Visit <a href="https://myaccount.google.com/connections" target="_blank" class="text-sky-400 underline">Google Connections</a> &rarr; Remove AI Threat Sentinel.</p>
+          <div class="space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
+            <p><strong>Closed your browser?</strong> Return to this website anytime and click <span class="text-emerald-400 font-semibold">1-Click Connect Any Mailbox</span> to restore your active session without re-granting permissions.</p>
+            <p><strong>Stop 24/7 Monitoring:</strong> On the Mailbox Triage bar above, click the red <span class="text-rose-400 font-bold px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">Disconnect</span> button.</p>
+            <p class="text-slate-400 text-[10px]">Clicking Disconnect permanently removes your credentials from the server, immediately halts background scanning, and cleans up your session.</p>
           </div>
         </div>
       </div>
@@ -396,6 +400,25 @@
       const yearEl = document.getElementById('currentYear');
       if (yearEl) yearEl.innerText = new Date().getFullYear();
 
+      const urlParams = new URLSearchParams(window.location.search);
+      const caseId = urlParams.get('case');
+      const view = urlParams.get('view');
+      const statusParam = urlParams.get('status');
+
+      // 1. Show Disconnection Banner if returned from /auth/logout
+      if (statusParam === 'disconnected') {
+        const banner = document.getElementById('statusAlertBanner');
+        banner.className = "p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 flex items-center justify-between text-xs font-semibold shadow-lg";
+        banner.innerHTML = `
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-circle-check text-rose-400 text-sm"></i>
+            <span><strong>24/7 Monitoring Stopped:</strong> Your mailbox has been unlinked and background daemon monitoring is completely paused.</span>
+          </div>
+          <button onclick="this.parentElement.remove()" class="text-rose-400 hover:text-white px-2 py-0.5 text-base">&times;</button>
+        `;
+        banner.classList.remove('hidden');
+      }
+
       fetch('/api/get_soc_alert_email')
         .then(res => res.json())
         .then(data => {
@@ -403,18 +426,27 @@
             connectedSessionEmail = data.soc_email;
             const input = document.getElementById('customSocEmail');
             if (input) input.value = data.soc_email;
+            const badge = document.getElementById('connectedUserBadge');
+            if (badge) badge.innerText = data.soc_email;
           }
         })
         .catch(() => {});
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const caseId = urlParams.get('case');
-      const view = urlParams.get('view');
-
+      // 2. Automatically restore inbox view if requested or if active session exists
       if (view === 'inbox_select') {
         loadInboxSelector();
       } else if (caseId) {
         fetchCaseData(caseId);
+      } else {
+        // Probe if session already exists in memory to automatically present the triage hub
+        fetch('/api/get_session_inbox')
+          .then(res => res.json())
+          .then(emails => {
+            if (emails && emails.length > 0) {
+              loadInboxSelector();
+            }
+          })
+          .catch(() => {});
       }
     });
 
@@ -513,7 +545,6 @@
         const isThreat = mail.threat_preview === 'CRITICAL';
         const item = document.createElement('div');
         
-        // Single responsive card container
         item.className = `p-4 bg-slate-900/70 hover:bg-slate-800/80 border ${isThreat ? 'border-rose-500/40 shadow-rose-950/20' : 'border-slate-800/80'} rounded-xl transition flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md`;
 
         item.innerHTML = `
