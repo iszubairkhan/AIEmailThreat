@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AI Email Threat Sentinel — SOC Forensic Platform</title>
+  <title>AI Email Threat Sentinel - SOC Forensic Platform</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -248,7 +248,7 @@
           </h4>
           <ol class="text-[11px] text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
             <li>Click <strong>1-Click Connect Any Mailbox</strong> to link your Gmail account.</li>
-            <li>Your inbox is audited 24/7 in the cloud—<strong>you can safely close this browser window</strong>.</li>
+            <li>Your inbox is audited 24/7 in the cloud &mdash; <strong>you can safely close this browser window</strong>.</li>
             <li>All incoming unread threats are audited automatically every 45 seconds without client software.</li>
             <li>High-risk incidents (&ge; 40%) generate Section 65B forensic hash logs and dispatch email alerts.</li>
           </ol>
@@ -407,7 +407,7 @@
       const view = urlParams.get('view');
       const statusParam = urlParams.get('status');
 
-      // 1. Show Disconnection Banner if returned from /auth/logout
+      // Show Disconnection Banner if returned from /auth/logout
       if (statusParam === 'disconnected') {
         const banner = document.getElementById('statusAlertBanner');
         banner.className = "p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 flex items-center justify-between text-xs font-semibold shadow-lg";
@@ -434,7 +434,6 @@
         })
         .catch(() => {});
 
-      // 2. Automatically restore inbox view if requested or if active session exists
       if (view === 'inbox_select') {
         loadInboxSelector();
       } else if (caseId) {
