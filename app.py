@@ -752,7 +752,9 @@ def _background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            query = 'is:unread -label:SOC-SCANNED -from:me -subject:"[SOC ALERT]" (in:inbox OR in:spam)'
+            # Normal self-sent test messages are included. Generated SOC alerts are
+            # blocked below using their headers and unmistakable subject markers.
+            query = 'is:unread -label:SOC-SCANNED (in:inbox OR in:spam)'
             list_url = (
                 "https://gmail.googleapis.com/gmail/v1/users/me/messages?"
                 + urlencode({"q": query, "includeSpamTrash": "true", "maxResults": "10"})
@@ -824,7 +826,6 @@ def _background_threat_monitor():
                         or "nexora.sentinel" in msg_uuid.lower()
                         or msg_uuid in SENT_ALERTS
                         or alert_id in SENT_ALERTS
-                        or email_addr.lower() in sndr
                         or "SOC-SCANNED" in message_labels
                     )
                     if self_markers:
