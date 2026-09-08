@@ -30,7 +30,7 @@ CASES_FILE = "cases_cache.json"
 ACCOUNTS_FILE = "accounts_cache.json"
 SETTINGS_FILE = "settings_cache.json"
 ALERTS_FILE = "sent_alerts_cache.json"
-ALERT_TEMPLATE_VERSION = "V3-ASCII"
+ALERT_TEMPLATE_VERSION = "V4-ASCII"
 
 CASES_DB = {}
 MONITORED_ACCOUNTS = {}
@@ -219,7 +219,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         if not raw_subj:
             raw_subj = "Urgent"
 
-        subject_line = f"[SOC Alert V3] {risk_tier.title()} - {score}% risk - {raw_subj}"
+        subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {raw_subj}"
 
         e_subject = html.escape(raw_subj, quote=True)
         e_sender = html.escape(sanitize_to_ascii(meta.get("from", "Unknown")), quote=True)
@@ -255,21 +255,21 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nexora Sentinel SOC Alert</title>
 </head>
-<body style="margin: 0; padding: 24px 0; background-color: #eaf0f7; font-family: Arial, Helvetica, sans-serif;">
-  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#eaf0f7" style="background-color: #eaf0f7;">
+<body style="margin: 0; padding: 24px 0; background-color: #030712; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" bgcolor="#ffffff" style="max-width: 600px; width: 100%; background-color: #ffffff; border: 1px solid #d9e2ec; border-radius: 12px; overflow: hidden;">
+        <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #0b132b; border: 1px solid #1e293b; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);">
           <tr>
-            <td bgcolor="#0f172a" style="padding: 22px 28px; background-color: #0f172a; border-bottom: 3px solid #0ea5e9;">
+            <td style="padding: 20px 28px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border-bottom: 1px solid #1e293b;">
               <table width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                   <td>
                     <span style="display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #38bdf8; background-color: rgba(3, 105, 161, 0.2); border: 1px solid rgba(2, 132, 199, 0.4); padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;">
-                      Security Operations Center - V3
+                      INCIDENT DISPATCH &bull; SIH26106
                     </span>
                     <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;">
-                      AI Threat Sentinel - Incident Alert
+                      NEXORA SENTINEL &mdash; SOC AUDIT REPORT
                     </h1>
                   </td>
                   <td align="right" valign="top">
@@ -280,16 +280,16 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             </td>
           </tr>
           <tr>
-            <td bgcolor="#ffffff" style="padding: 24px 28px 20px 28px; background-color: #ffffff;">
+            <td style="padding: 24px 28px 20px 28px; background-color: #070d1e;">
               <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
                 <tr>
-                  <td width="33%" bgcolor="#f8fafc" style="padding: 12px; background-color: #f8fafc; border: 1px solid #d9e2ec; border-radius: 8px; vertical-align: top;">
+                  <td width="33%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
                     <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Threat Score</div>
                     <div style="font-size: 26px; font-weight: 900; color: {accent_color}; margin-top: 4px;">{score}%</div>
                   </td>
                   <td width="4%"></td>
-                  <td width="63%" bgcolor="#f8fafc" style="padding: 12px; background-color: #f8fafc; border: 1px solid #d9e2ec; border-radius: 8px; vertical-align: top;">
-                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Risk Level</div>
+                  <td width="63%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
+                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Risk Verdict</div>
                     <div style="margin-top: 6px;">
                       <span style="display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; color: {accent_color}; background-color: {badge_bg}; border: 1px solid {badge_border}50; padding: 4px 10px; border-radius: 6px;">
                         {e_risk}
@@ -302,11 +302,11 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
           </tr>
           <tr>
             <td style="padding: 0 28px 20px 28px;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#f8fafc" style="background-color: #f8fafc; border: 1px solid #d9e2ec; border-radius: 10px; padding: 16px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
                 <tr>
                   <td>
                     <div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 6px;">
-                      Message Details
+                      Envelope Header Triage
                     </div>
                     <table width="100%" border="0" cellspacing="0" cellpadding="4" style="font-size: 12px;">
                       <tr>
@@ -334,7 +334,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                       <tr>
                         <td style="color: #64748b; font-weight: 600;">Authentication:</td>
                         <td style="color: #cbd5e1; font-size: 11px;">
-                          SPF: <strong style="color: #0369a1;">{e_spf}</strong> - 
+                          SPF: <strong style="color: #38bdf8;">{e_spf}</strong> &bull; 
                           DMARC: <strong style="color: #e2e8f0;">{e_dmarc}</strong>
                         </td>
                       </tr>
@@ -346,9 +346,9 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
           </tr>
           <tr>
             <td style="padding: 0 28px 20px 28px;">
-              <div style="background-color: #fffaf0; border: 1px solid #fde68a; border-radius: 10px; padding: 16px;">
+              <div style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
                 <div style="font-size: 11px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;">
-                  Detected Risk Factors
+                  Detected Risk Indicators
                 </div>
                 <ul style="margin: 0; padding-left: 18px;">
                   {reasons_html}
@@ -358,9 +358,9 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
           </tr>
           <tr>
             <td style="padding: 0 28px 24px 28px;">
-              <div style="background-color: #f1f5f9; border: 1px dashed #94a3b8; border-radius: 8px; padding: 12px;">
+              <div style="background-color: #030712; border: 1px dashed #334155; border-radius: 8px; padding: 12px;">
                 <div style="font-size: 10px; font-weight: 800; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">
-                  Forensic Evidence Reference
+                  Section 65B Forensic Evidence Seal (BSA 2023)
                 </div>
                 <div style="font-family: monospace; font-size: 10px; color: #94a3b8; word-break: break-all; margin-top: 4px;">
                   {e_evidence}
@@ -372,9 +372,9 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             <td align="center" style="padding: 0 28px 28px 28px;">
               <table border="0" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td align="center" bgcolor="#0284c7" style="border-radius: 8px; background-color: #0284c7;">
+                  <td align="center" style="border-radius: 8px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
                     <a href="{dashboard_url}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 13px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 8px; letter-spacing: 0.2px;">
-                      Open Forensic Case Dashboard
+                      Open Live Forensic Case Dashboard &rarr;
                     </a>
                   </td>
                 </tr>
@@ -382,7 +382,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             </td>
           </tr>
           <tr>
-            <td bgcolor="#f8fafc" style="padding: 16px 28px; background-color: #f8fafc; border-top: 1px solid #d9e2ec; text-align: center;">
+            <td style="padding: 16px 28px; background-color: #030712; border-top: 1px solid #1e293b; text-align: center;">
               <p style="margin: 0; font-size: 10px; color: #475569; line-height: 1.4;">
                 Automated triage generated by Nexora Sentinel. Real-time RFC-822 MTA hop extraction &amp; DNS verification.
               </p>
@@ -402,7 +402,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         msg["Reply-To"] = recipient_email
         msg["Subject"] = subject_line
         msg["X-Nexora-Sentinel"] = "alert"
-        msg["X-Nexora-Template-Version"] = ALERT_TEMPLATE_VERSION
         msg["X-Nexora-Alert-ID"] = unique_msg_id[:120]
         msg["Date"] = formatdate(localtime=True)
         gen_id = make_msgid(domain="nexora.sentinel")
@@ -416,15 +415,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             f"Subject: {raw_subj}\n"
             f"Dashboard: {dashboard_url}\n"
         )
-
-        # Final transport safety net: outgoing alert content is strictly ASCII.
-        # Gmail therefore cannot display malformed characters as replacement marks.
-        subject_line = subject_line.encode("ascii", "ignore").decode("ascii")
-        html_body = html_body.encode("ascii", "ignore").decode("ascii")
-        plain_text = plain_text.encode("ascii", "ignore").decode("ascii")
-        msg.replace_header("Subject", subject_line) if "Subject" in msg else None
-        # The complete alert is ASCII-only, including all generated values.
-        # This prevents Gmail from showing replacement-question-mark characters.
         msg.attach(MIMEText(plain_text, "plain", "us-ascii"))
         msg.attach(MIMEText(html_body, "html", "us-ascii"))
 
@@ -752,8 +742,7 @@ def _background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            # Normal self-sent test messages are included. Generated SOC alerts are
-            # blocked below using their headers and unmistakable subject markers.
+            # Relaxed query to safely discover unread threat messages without missing them
             query = 'is:unread -label:SOC-SCANNED (in:inbox OR in:spam)'
             list_url = (
                 "https://gmail.googleapis.com/gmail/v1/users/me/messages?"
@@ -804,29 +793,18 @@ def _background_threat_monitor():
                     alert_id = header_map.get("x-nexora-alert-id", "").strip("<>").strip()
                     snippet = str(meta_data.get("snippet", "")).lower()
                     clean_subj = sanitize_to_ascii(subj).lower()
-                    raw_subj = str(subj).casefold()
-                    message_labels = set(meta_data.get("labelIds", []) or [])
-
-                    # Never analyse an alert generated by this application. This check is
-                    # deliberately independent of Gmail search syntax so it also blocks
-                    # alerts whose subject begins with broken or unknown characters.
-                    looks_like_soc_alert = (
-                        "[soc alert]" in raw_subj
-                        or "soc alert" in raw_subj
-                        or "ai threat sentinel" in raw_subj
-                        or "soc incident alert" in raw_subj
-                    )
 
                     self_markers = (
                         is_nexora_header == "alert"
                         or bool(alert_id)
-                        or looks_like_soc_alert
+                        or "[soc alert]" in clean_subj
+                        or "soc incident alert" in clean_subj
+                        or "ai threat sentinel" in clean_subj
                         or "nexora sentinel" in snippet
                         or "incident dispatch" in snippet
                         or "nexora.sentinel" in msg_uuid.lower()
                         or msg_uuid in SENT_ALERTS
                         or alert_id in SENT_ALERTS
-                        or "SOC-SCANNED" in message_labels
                     )
                     if self_markers:
                         apply_soc_label_to_message(headers, msg_id, mark_as_read=True)
