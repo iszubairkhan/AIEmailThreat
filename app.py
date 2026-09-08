@@ -30,6 +30,7 @@ CASES_FILE = "cases_cache.json"
 ACCOUNTS_FILE = "accounts_cache.json"
 SETTINGS_FILE = "settings_cache.json"
 ALERTS_FILE = "sent_alerts_cache.json"
+ALERT_TEMPLATE_VERSION = "V3-ASCII"
 
 CASES_DB = {}
 MONITORED_ACCOUNTS = {}
@@ -218,7 +219,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         if not raw_subj:
             raw_subj = "Urgent"
 
-        subject_line = f"[SOC Alert] {risk_tier.title()} - {score}% risk - {raw_subj}"
+        subject_line = f"[SOC Alert V3] {risk_tier.title()} - {score}% risk - {raw_subj}"
 
         e_subject = html.escape(raw_subj, quote=True)
         e_sender = html.escape(sanitize_to_ascii(meta.get("from", "Unknown")), quote=True)
@@ -265,7 +266,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 <tr>
                   <td>
                     <span style="display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #38bdf8; background-color: rgba(3, 105, 161, 0.2); border: 1px solid rgba(2, 132, 199, 0.4); padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;">
-                      Security Operations Center
+                      Security Operations Center - V3
                     </span>
                     <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;">
                       AI Threat Sentinel - Incident Alert
@@ -401,6 +402,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         msg["Reply-To"] = recipient_email
         msg["Subject"] = subject_line
         msg["X-Nexora-Sentinel"] = "alert"
+        msg["X-Nexora-Template-Version"] = ALERT_TEMPLATE_VERSION
         msg["X-Nexora-Alert-ID"] = unique_msg_id[:120]
         msg["Date"] = formatdate(localtime=True)
         gen_id = make_msgid(domain="nexora.sentinel")
