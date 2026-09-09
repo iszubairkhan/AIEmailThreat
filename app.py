@@ -710,8 +710,7 @@ def _background_threat_monitor():
 
             # Relaxed query to safely discover unread threat messages without missing them
             query = 'is:unread -label:SOC-SCANNED (in:inbox OR in:spam)'
-           list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' 
-           + urlencode({'maxResults': '10', 'q': '(in:inbox OR in:spam) -subject:"[SOC ALERT]"'})
+           list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?'+ urlencode({'maxResults': '10', 'q': '(in:inbox OR in:spam) -subject:"[SOC ALERT]"'})
 
             res = requests.get(list_url, headers=headers, timeout=10)
             if res.status_code != 200:
