@@ -193,11 +193,13 @@ def sanitize_to_ascii(text):
     return re.sub(r"[^\x20-\x7E]", "", str(text)).strip()
 
 def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique_msg_id):
+    """Send one clean, aesthetic SOC alert and permanently deduplicate it."""
     global SENT_ALERTS
 
     unique_msg_id = str(unique_msg_id).strip("<>").strip()
     unique_key = f"ALERT_SENT_{unique_msg_id}"
 
+    # Fast duplicate check before any network call.
     with ALERT_FILE_LOCK:
         if unique_key in SENT_ALERTS or unique_msg_id in SENT_ALERTS:
             return False
@@ -212,15 +214,16 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         risk_tier = sanitize_to_ascii(threat.get("risk_tier", "ELEVATED RISK")) or "ELEVATED RISK"
 
         accent_color = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
-        badge_bg = "rgba(244, 63, 94, 0.15)" if score >= 70 else ("rgba(245, 158, 11, 0.15)" if score >= 40 else "rgba(16, 185, 129, 0.15)")
-        badge_border = "#f43f5e" if score >= 70 else ("#f59e0b" if score >= 40 else "#10b981")
+        badge_bg = "#2a1018" if score >= 70 else ("#2b210b" if score >= 40 else "#0b2a20")
 
-        raw_subj = sanitize_to_ascii(meta.get("subject", "Untitled"))[:35]
+        raw_subj = sanitize_to_ascii(meta.get("subject", "Untitled"))[:80]
         if not raw_subj:
-            raw_subj = "Urgent"
+            raw_subj = "Suspicious Message"
 
-        subject_line = f"[SOC ALERT] Threat Detected ({score}% Risk) - {raw_subj}"
+        # Clean ASCII subject line avoiding raw unicode characters that trigger question marks
+        subject_line = f"[SOC ALERT] Threat Detected - {score}% Risk - Case #{case_id}"
 
+        # Escape dynamic values
         e_subject = html.escape(raw_subj, quote=True)
         e_sender = html.escape(sanitize_to_ascii(meta.get("from", "Unknown")), quote=True)
         e_return = html.escape(sanitize_to_ascii(meta.get("return_path", "None")), quote=True)
@@ -228,8 +231,8 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         e_city = html.escape(sanitize_to_ascii(origin.get("city", "Unknown")), quote=True)
         e_country = html.escape(sanitize_to_ascii(origin.get("country", "Unknown")), quote=True)
         e_node = html.escape(sanitize_to_ascii(origin.get("node_type", "Unknown")), quote=True)
-        e_spf = html.escape(sanitize_to_ascii(dns_auth.get("spf", "Neutral"))[:20], quote=True)
-        e_dmarc = html.escape(sanitize_to_ascii(dns_auth.get("dmarc", "None"))[:18], quote=True)
+        e_spf = html.escape(sanitize_to_ascii(dns_auth.get("spf", "Neutral"))[:30], quote=True)
+        e_dmarc = html.escape(sanitize_to_ascii(dns_auth.get("dmarc", "None"))[:30], quote=True)
         e_risk = html.escape(risk_tier, quote=True)
         evidence = sanitize_to_ascii(meta.get("evidence_sha256", ""))
         if not evidence:
@@ -238,16 +241,19 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         e_case = html.escape(str(case_id), quote=True)
 
         reasons = threat.get("threat_reasons", []) or [
-            "Clean return-path alignment and authenticated corporate delivery."
+            "No high-confidence threat indicators were identified."
         ]
         reasons_items = []
         for reason in reasons[:8]:
-            clean_reason = sanitize_to_ascii(reason)
-            reasons_items.append(f'<li style="margin-bottom: 6px; color: #cbd5e1; font-size: 12px; line-height: 1.5;">{clean_reason}</li>')
+            clean_reason = html.escape(sanitize_to_ascii(reason), quote=True)
+            reasons_items.append(
+                f'<li style="margin:0 0 8px 0;color:#cbd5e1;font-size:13px;line-height:1.55;">{clean_reason}</li>'
+            )
         reasons_html = "".join(reasons_items)
 
         dashboard_url = f"https://aiemailthreat.onrender.com/?case={quote(str(case_id))}"
 
+        # Beautified Email Template with Modern Cyber Theme & Clean Banner
         html_body = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -255,146 +261,106 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nexora Sentinel SOC Alert</title>
 </head>
-<body style="margin: 0; padding: 24px 0; background-color: #030712; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #0b132b; border: 1px solid #1e293b; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);">
-          <tr>
-            <td style="padding: 20px 28px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border-bottom: 1px solid #1e293b;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td>
-                    <span style="display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #38bdf8; background-color: rgba(3, 105, 161, 0.2); border: 1px solid rgba(2, 132, 199, 0.4); padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;">
-                      INCIDENT DISPATCH &bull; SIH26106
-                    </span>
-                    <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;">
-                      NEXORA SENTINEL &mdash; SOC AUDIT REPORT
-                    </h1>
-                  </td>
-                  <td align="right" valign="top">
-                    <span style="font-family: monospace; font-size: 12px; color: #94a3b8; font-weight: 700;">#{e_case}</span>
-                  </td>
-                </tr>
+<body style="margin:0;padding:32px 16px;background:#030712;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e5e7eb;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr><td align="center">
+      <table role="presentation" width="620" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:620px;background:#0b1220;border:1px solid #1e293b;border-radius:18px;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+        
+        <!-- Beautified Sleek Gradient Header Banner -->
+        <tr>
+          <td style="padding:32px 30px;background:linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);border-bottom:1px solid #334155;text-align:left;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td>
+                  <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;">NEXORA SENTINEL &bull; SECURE SOC</div>
+                  <div style="font-size:22px;font-weight:900;color:#ffffff;line-height:1.3;letter-spacing:-0.3px;">Automated Threat Intelligence Report</div>
+                  <div style="font-size:12px;color:#94a3b8;margin-top:6px;">Zero-detonation email telemetry analysis</div>
+                </td>
+                <td align="right" style="vertical-align:top;">
+                  <div style="background:rgba(56, 189, 248, 0.1);border:1px solid rgba(56, 189, 248, 0.3);color:#38bdf8;font-size:11px;font-weight:bold;padding:6px 12px;border-radius:20px;display:inline-block;">SIH26106</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Risk Metrics Overview Block -->
+        <tr>
+          <td style="padding:24px 30px 10px 30px;background:#070d1a;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td width="42%" style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;">
+                  <div style="font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Threat Score</div>
+                  <div style="font-size:38px;font-weight:900;color:{accent_color};margin-top:4px;letter-spacing:-1px;">{score}%</div>
+                </td>
+                <td width="4%"></td>
+                <td width="54%" style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;vertical-align:top;">
+                  <div style="font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Risk Verdict</div>
+                  <div style="margin-top:8px;display:inline-block;padding:6px 12px;border-radius:8px;background:{badge_bg};border:1px solid {accent_color};color:{accent_color};font-size:11px;font-weight:bold;letter-spacing:0.5px;">{e_risk}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Message Metadata Box -->
+        <tr>
+          <td style="padding:10px 30px 20px 30px;background:#070d1a;">
+            <div style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;">
+              <div style="font-size:11px;font-weight:bold;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Message Telemetry Details</div>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="6" border="0" style="font-size:12px;">
+                <tr><td width="30%" style="color:#64748b;font-weight:bold;">Case ID</td><td style="color:#f8fafc;font-family:monospace;font-weight:bold;">#{e_case}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Subject</td><td style="color:#e2e8f0;">{e_subject}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Claimed Sender</td><td style="color:#cbd5e1;font-family:monospace;word-break:break-word;">{e_sender}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Return-Path</td><td style="color:#fda4af;font-family:monospace;word-break:break-word;">{e_return}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Origin MTA</td><td style="color:#38bdf8;font-family:monospace;">{e_ip} | {e_city}, {e_country}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Node Type</td><td style="color:#e2e8f0;">{e_node}</td></tr>
+                <tr><td style="color:#64748b;font-weight:bold;">Authentication</td><td style="color:#cbd5e1;">SPF: <b style="color:#38bdf8;">{e_spf}</b> | DMARC: <b style="color:#e2e8f0;">{e_dmarc}</b></td></tr>
               </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 24px 28px 20px 28px; background-color: #070d1e;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
-                <tr>
-                  <td width="33%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
-                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Threat Score</div>
-                    <div style="font-size: 26px; font-weight: 900; color: {accent_color}; margin-top: 4px;">{score}%</div>
-                  </td>
-                  <td width="4%"></td>
-                  <td width="63%" style="padding: 12px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; vertical-align: top;">
-                    <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Risk Verdict</div>
-                    <div style="margin-top: 6px;">
-                      <span style="display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; color: {accent_color}; background-color: {badge_bg}; border: 1px solid {badge_border}50; padding: 4px 10px; border-radius: 6px;">
-                        {e_risk}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 28px 20px 28px;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
-                <tr>
-                  <td>
-                    <div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 6px;">
-                      Envelope Header Triage
-                    </div>
-                    <table width="100%" border="0" cellspacing="0" cellpadding="4" style="font-size: 12px;">
-                      <tr>
-                        <td width="28%" style="color: #64748b; font-weight: 600;">Subject:</td>
-                        <td style="color: #f8fafc; font-weight: 600;">{e_subject}</td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Claimed Sender:</td>
-                        <td style="color: #cbd5e1; font-family: monospace;">{e_sender}</td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Return-Path:</td>
-                        <td style="color: #f43f5e; font-family: monospace; font-weight: 600;">{e_return}</td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Origin Geo / IP:</td>
-                        <td style="color: #38bdf8; font-family: monospace;">
-                          {e_ip} ({e_city}, {e_country})
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Node Type:</td>
-                        <td style="color: #e2e8f0;">{e_node}</td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; font-weight: 600;">Authentication:</td>
-                        <td style="color: #cbd5e1; font-size: 11px;">
-                          SPF: <strong style="color: #38bdf8;">{e_spf}</strong> &bull; 
-                          DMARC: <strong style="color: #e2e8f0;">{e_dmarc}</strong>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 28px 20px 28px;">
-              <div style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 16px;">
-                <div style="font-size: 11px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;">
-                  Detected Risk Indicators
-                </div>
-                <ul style="margin: 0; padding-left: 18px;">
-                  {reasons_html}
-                </ul>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 28px 24px 28px;">
-              <div style="background-color: #030712; border: 1px dashed #334155; border-radius: 8px; padding: 12px;">
-                <div style="font-size: 10px; font-weight: 800; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">
-                  Section 65B Forensic Evidence Seal (BSA 2023)
-                </div>
-                <div style="font-family: monospace; font-size: 10px; color: #94a3b8; word-break: break-all; margin-top: 4px;">
-                  {e_evidence}
-                </div>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td align="center" style="padding: 0 28px 28px 28px;">
-              <table border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td align="center" style="border-radius: 8px; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
-                    <a href="{dashboard_url}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 13px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 8px; letter-spacing: 0.2px;">
-                      Open Live Forensic Case Dashboard &rarr;
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 16px 28px; background-color: #030712; border-top: 1px solid #1e293b; text-align: center;">
-              <p style="margin: 0; font-size: 10px; color: #475569; line-height: 1.4;">
-                Automated triage generated by Nexora Sentinel. Real-time RFC-822 MTA hop extraction &amp; DNS verification.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Threat Indicators Box -->
+        <tr>
+          <td style="padding:0 30px 20px 30px;background:#070d1a;">
+            <div style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;">
+              <div style="font-size:11px;font-weight:bold;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Detected Risk Indicators</div>
+              <ul style="margin:0;padding-left:18px;">{reasons_html}</ul>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Digital Evidence Record Box -->
+        <tr>
+          <td style="padding:0 30px 24px 30px;background:#070d1a;">
+            <div style="padding:16px;background:#030712;border:1px dashed #334155;border-radius:10px;">
+              <div style="font-size:10px;font-weight:bold;color:#10b981;letter-spacing:1px;text-transform:uppercase;">BSA Electronic Evidence Seal (Sec 65B)</div>
+              <div style="font-size:10px;color:#94a3b8;margin-top:6px;line-height:1.5;word-break:break-all;font-family:monospace;">SHA-256: {e_evidence}</div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Action Button -->
+        <tr>
+          <td align="center" style="padding:0 30px 32px 30px;background:#070d1a;">
+            <a href="{dashboard_url}" target="_blank" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);border-radius:10px;color:#ffffff;text-decoration:none;font-size:13px;font-weight:bold;box-shadow:0 4px 12px rgba(37, 99, 235, 0.4);">Open Forensic Case Dashboard</a>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 30px;background:#030712;border-top:1px solid #1e293b;text-align:center;">
+            <div style="font-size:10px;color:#64748b;line-height:1.6;">Generated automatically by Nexora Sentinel SOC Daemon.</div>
+            <div style="font-size:10px;color:#475569;margin-top:4px;">Secure Incident Reference: #{e_case}</div>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
   </table>
 </body>
-</html>
-"""
+</html>"""
 
         msg = MIMEMultipart("alternative")
         msg["To"] = recipient_email
@@ -415,8 +381,8 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
             f"Subject: {raw_subj}\n"
             f"Dashboard: {dashboard_url}\n"
         )
-        msg.attach(MIMEText(plain_text, "plain", "us-ascii"))
-        msg.attach(MIMEText(html_body, "html", "us-ascii"))
+        msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
 
