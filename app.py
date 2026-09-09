@@ -199,7 +199,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     unique_msg_id = str(unique_msg_id).strip("<>").strip()
     unique_key = f"ALERT_SENT_{unique_msg_id}"
 
-    # Fast duplicate check before any network call.
     with ALERT_FILE_LOCK:
         if unique_key in SENT_ALERTS or unique_msg_id in SENT_ALERTS:
             return False
@@ -220,10 +219,8 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
         if not raw_subj:
             raw_subj = "Suspicious Message"
 
-        # Clean ASCII subject line avoiding raw unicode characters that trigger question marks
         subject_line = f"[SOC ALERT] Threat Detected - {score}% Risk - Case #{case_id}"
 
-        # Escape dynamic values
         e_subject = html.escape(raw_subj, quote=True)
         e_sender = html.escape(sanitize_to_ascii(meta.get("from", "Unknown")), quote=True)
         e_return = html.escape(sanitize_to_ascii(meta.get("return_path", "None")), quote=True)
@@ -253,7 +250,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
 
         dashboard_url = f"https://aiemailthreat.onrender.com/?case={quote(str(case_id))}"
 
-        # Beautified Email Template with Modern Cyber Theme & Clean Banner
         html_body = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -266,7 +262,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     <tr><td align="center">
       <table role="presentation" width="620" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:620px;background:#0b1220;border:1px solid #1e293b;border-radius:18px;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0, 0, 0, 0.5);">
         
-        <!-- Beautified Sleek Gradient Header Banner -->
         <tr>
           <td style="padding:32px 30px;background:linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);border-bottom:1px solid #334155;text-align:left;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
@@ -284,7 +279,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
           </td>
         </tr>
 
-        <!-- Risk Metrics Overview Block -->
         <tr>
           <td style="padding:24px 30px 10px 30px;background:#070d1a;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
@@ -303,7 +297,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
           </td>
         </tr>
 
-        <!-- Message Metadata Box -->
         <tr>
           <td style="padding:10px 30px 20px 30px;background:#070d1a;">
             <div style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;">
@@ -321,7 +314,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
           </td>
         </tr>
 
-        <!-- Threat Indicators Box -->
         <tr>
           <td style="padding:0 30px 20px 30px;background:#070d1a;">
             <div style="padding:18px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;">
@@ -331,7 +323,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
           </td>
         </tr>
 
-        <!-- Digital Evidence Record Box -->
         <tr>
           <td style="padding:0 30px 24px 30px;background:#070d1a;">
             <div style="padding:16px;background:#030712;border:1px dashed #334155;border-radius:10px;">
@@ -341,14 +332,12 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
           </td>
         </tr>
 
-        <!-- Action Button -->
         <tr>
           <td align="center" style="padding:0 30px 32px 30px;background:#070d1a;">
             <a href="{dashboard_url}" target="_blank" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);border-radius:10px;color:#ffffff;text-decoration:none;font-size:13px;font-weight:bold;box-shadow:0 4px 12px rgba(37, 99, 235, 0.4);">Open Forensic Case Dashboard</a>
           </td>
         </tr>
 
-        <!-- Footer -->
         <tr>
           <td style="padding:20px 30px;background:#030712;border-top:1px solid #1e293b;text-align:center;">
             <div style="font-size:10px;color:#64748b;line-height:1.6;">Generated automatically by Nexora Sentinel SOC Daemon.</div>
@@ -708,9 +697,7 @@ def _background_threat_monitor():
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            # Relaxed query to safely discover unread threat messages without missing them
-            query = 'is:unread -label:SOC-SCANNED (in:inbox OR in:spam)'
-           list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?'+ urlencode({'maxResults': '10', 'q': '(in:inbox OR in:spam) -subject:"[SOC ALERT]"'})
+            list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' + urlencode({'maxResults': '10', 'q': '(in:inbox OR in:spam) -subject:"[SOC ALERT]"'})
 
             res = requests.get(list_url, headers=headers, timeout=10)
             if res.status_code != 200:
@@ -963,7 +950,7 @@ def refresh_inbox():
 
     headers = {"Authorization": f"Bearer {access_token}"}
     try:
-        list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' + urlencode({'maxResults': '10', 'q': 'in:inbox -subject:"[SOC ALERT]"'})
+        list_url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' + urlencode({'maxResults': '10', 'q': '(in:inbox OR in:spam) -subject:"[SOC ALERT]"'})
         list_res = requests.get(list_url, headers=headers, timeout=10).json()
         messages_summary = list_res.get("messages", [])
 
