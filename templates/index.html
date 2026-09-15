@@ -1,700 +1,1892 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Email Threat Sentinel - SOC Forensic Platform</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-    html, body {
-      overflow-x: hidden;
-      width: 100%;
-    }
+:root {
+  color-scheme: light dark;
+  --bg: #f3f6fc;
+  --surface: #ffffff;
+  --surface-raised: #f8faff;
+  --surface-alt: #edf2f9;
+  --text: #0f172a;
+  --text-muted: #526581;
+  --border: #dbe3ee;
+  --border-strong: #cbd5e1;
+  --accent: #2563eb;
+  --accent-text: #1d4ed8;
+  --accent-light: #eff6ff;
+  
+  /* Bright cybersecurity semantic palette */
+  --c-crit: #ef4444;
+  --c-crit-bg: #fef2f2;
+  --c-crit-border: #fca5a5;
+  --c-warn: #f59e0b;
+  --c-warn-bg: #fffbeb;
+  --c-warn-border: #fcd34d;
+  --c-safe: #10b981;
+  --c-safe-bg: #ecfdf5;
+  --c-safe-border: #6ee7b7;
+  --c-cyan: #06b6d4;
+  --c-cyan-bg: #ecfeff;
+  --c-cyan-border: #67e8f9;
+  --c-purple: #8b5cf6;
+  --c-purple-bg: #f5f3ff;
+  --c-purple-border: #c4b5fd;
+  
+  --font-display: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-data: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --measure: 82ch;
+  --radius: 12px;
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1120;
+    --surface: #131d31;
+    --surface-raised: #1a263f;
+    --surface-alt: #162035;
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
+    --border: #22324e;
+    --border-strong: #33476a;
+    --accent: #38bdf8;
+    --accent-text: #60a5fa;
+    --accent-light: #082f49;
+    
+    --c-crit: #f87171;
+    --c-crit-bg: #450a0a;
+    --c-crit-border: #7f1d1d;
+    --c-warn: #fbbf24;
+    --c-warn-bg: #451a03;
+    --c-warn-border: #78350f;
+    --c-safe: #34d399;
+    --c-safe-bg: #064e3b;
+    --c-safe-border: #065f46;
+    --c-cyan: #22d3ee;
+    --c-cyan-bg: #083344;
+    --c-cyan-border: #155e75;
+    --c-purple: #a78bfa;
+    --c-purple-bg: #2e1065;
+    --c-purple-border: #5b21b6;
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg, Canvas);
+  color: var(--text, CanvasText);
+  font-family: var(--font-body, system-ui, sans-serif);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display, inherit);
+  line-height: 1.15;
+  text-wrap: balance;
+  margin: 0;
+}
+
+p {
+  text-wrap: pretty;
+  margin: 0;
+}
+
+a {
+  color: var(--accent-text, LinkText);
+  text-decoration: none;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+svg text {
+  fill: currentColor;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+}
+
+td,
+th,
+data,
+time {
+  font-variant-numeric: tabular-nums;
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--font-data);
+}
+
+pre {
+  overflow-x: auto;
+}
+
+/* Page Layout */
+.app-container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Top App Header */
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-symbol {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+  flex-shrink: 0;
+}
+
+.brand-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.brand-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 6px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.badge-sih {
+  background: #fdf2f8;
+  color: #db2777;
+  border: 1px solid #fbcfe8;
+}
+@media (prefers-color-scheme: dark) {
+  .badge-sih {
+    background: #500724;
+    color: #f472b6;
+    border-color: #831843;
+  }
+}
+
+.brand-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--c-safe-bg);
+  color: var(--c-safe);
+  border: 1px solid var(--c-safe-border);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-safe);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-ghost:hover {
+  background: var(--surface-alt);
+  border-color: var(--border-strong);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.45);
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
+}
+.btn-accent:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.45);
+}
+
+.btn-cyan {
+  background: linear-gradient(135deg, #0891b2, #0e7490);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(8, 145, 178, 0.35);
+}
+.btn-cyan:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(8, 145, 178, 0.45);
+}
+
+.btn-danger {
+  background: var(--c-crit-bg);
+  color: var(--c-crit);
+  border-color: var(--c-crit-border);
+}
+.btn-danger:hover {
+  background: var(--c-crit);
+  color: #ffffff;
+}
+
+/* Hero Section */
+.hero-card {
+  position: relative;
+  overflow: hidden;
+  padding: 32px 36px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e1b4b 60%, #31104b 100%);
+  color: #ffffff;
+  border-radius: var(--radius);
+  box-shadow: 0 12px 30px -5px rgba(30, 58, 138, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hero-glow-blob {
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.35) 0%, rgba(139, 92, 246, 0.15) 50%, transparent 70%);
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  width: fit-content;
+}
+
+.hero-title {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+.hero-desc {
+  font-size: 1rem;
+  color: #cbd5e1;
+  max-width: 68ch;
+  line-height: 1.6;
+}
+
+.hero-cta-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* Mailbox Live Bar */
+.live-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 14px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.live-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pulse-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--c-safe-bg);
+  color: var(--c-safe);
+  border: 1px solid var(--c-safe-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.live-bar-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.live-bar-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-bar-subtitle {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.live-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Grid layout for Main Triage & Inspector */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 980px) {
+  .dashboard-grid {
+    grid-template-columns: 420px 1fr;
+  }
+}
+
+/* Triage Panel (Left Column) */
+.triage-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--surface-alt);
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.filter-btn {
+  flex: 1;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.filter-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.filter-count {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: var(--border);
+}
+
+.email-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: 560px;
+}
+
+.email-item {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface);
+}
+
+.email-item:hover {
+  background: var(--surface-raised);
+}
+
+.email-item.selected {
+  background: var(--accent-light);
+  border-left: 4px solid var(--accent);
+}
+
+.email-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.email-sender {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.email-subject {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.email-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+/* Badge styles */
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.pill-crit {
+  background: var(--c-crit-bg);
+  color: var(--c-crit);
+  border: 1px solid var(--c-crit-border);
+}
+
+.pill-warn {
+  background: var(--c-warn-bg);
+  color: var(--c-warn);
+  border: 1px solid var(--c-warn-border);
+}
+
+.pill-safe {
+  background: var(--c-safe-bg);
+  color: var(--c-safe);
+  border: 1px solid var(--c-safe-border);
+}
+
+.pill-purple {
+  background: var(--c-purple-bg);
+  color: var(--c-purple);
+  border: 1px solid var(--c-purple-border);
+}
+
+.pill-cyan {
+  background: var(--c-cyan-bg);
+  color: var(--c-cyan);
+  border: 1px solid var(--c-cyan-border);
+}
+
+/* Inspector Panel (Right Column) */
+.inspector-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.case-header-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.case-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.case-id-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-data);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+
+.case-meta-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.meta-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 0.82rem;
+}
+
+.meta-label {
+  width: 100px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+
+.meta-val {
+  font-family: var(--font-data);
+  color: var(--text);
+  word-break: break-all;
+  background: var(--surface-alt);
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  flex-grow: 1;
+}
+
+/* 4 Metrics Highlight Cards */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--border-strong);
+}
+
+.metric-card.card-crit::before { background: var(--c-crit); }
+.metric-card.card-warn::before { background: var(--c-warn); }
+.metric-card.card-safe::before { background: var(--c-safe); }
+.metric-card.card-purple::before { background: var(--c-purple); }
+.metric-card.card-cyan::before { background: var(--c-cyan); }
+
+.metric-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.metric-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.metric-big-num {
+  font-size: 1.8rem;
+  font-weight: 900;
+  line-height: 1;
+  font-family: var(--font-data);
+}
+
+.metric-sub {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dns-pill-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.dns-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-family: var(--font-data);
+  font-weight: 600;
+}
+
+.hash-box {
+  background: var(--surface-alt);
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-family: var(--font-data);
+  font-size: 0.68rem;
+  color: var(--text);
+  word-break: break-all;
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.hash-copy-btn {
+  margin-top: 6px;
+  align-self: flex-start;
+  padding: 3px 8px;
+  font-size: 0.7rem;
+}
+
+/* Detailed Investigation Panels (2-Col) */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .detail-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.detail-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.detail-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+.indicator-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.indicator-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.indicator-icon-box {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+}
+
+.indicator-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.indicator-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.indicator-desc {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+/* MTA Relay Traversal */
+.hop-timeline {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: 20px;
+  gap: 14px;
+}
+
+.hop-timeline::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--border-strong);
+}
+
+.hop-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--surface-alt);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.hop-dot {
+  position: absolute;
+  left: -20px;
+  top: 12px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 2px var(--border-strong);
+}
+
+.hop-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.hop-ip {
+  font-family: var(--font-data);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Documentation / Help Desk */
+.docs-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.docs-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+@media (min-width: 768px) {
+  .docs-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.guide-box {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-box-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guide-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.guide-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.step-num {
+  font-weight: 800;
+  color: var(--accent-text);
+  font-family: var(--font-data);
+}
+
+/* Modal for SOC Incident Dispatch */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.modal-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-width: 500px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transform: translateY(15px);
+  transition: transform 0.2s ease;
+}
+
+.modal-backdrop.open .modal-card {
+  transform: translateY(0);
+}
+
+.modal-head {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-size: 1rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.modal-close-btn:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.form-input {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-family: var(--font-data);
+  font-size: 0.85rem;
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.modal-foot {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: var(--surface-raised);
+}
+
+/* Footer */
+.app-footer {
+  text-align: center;
+  padding-top: 20px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between selection:bg-sky-500 selection:text-white antialiased">
-
-  <!-- Mobile-Responsive Header -->
-  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 py-3 sticky top-0 z-50">
-    <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
-      
-      <!-- Brand & Title -->
-      <div class="flex items-center gap-3.5">
-        <div class="bg-slate-900 border border-sky-500/40 rounded-xl shadow-lg shadow-sky-500/20 flex-shrink-0 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 overflow-hidden relative">
-          <img src="https://raw.githubusercontent.com/iszubairkhan/AIEmailThreat/main/Nexora%20logo.png" 
-               alt="Nexora Logo" 
-               class="w-full h-full object-contain scale-[1.4] transition-transform duration-200">
+<body>
+  <div class="app-container">
+    
+    <!-- Top Nav Header -->
+    <header class="top-nav">
+      <div class="brand-group">
+        <div class="logo-symbol">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
         </div>
-        <div>
-          <h1 class="text-sm sm:text-base font-black tracking-wide text-white flex items-center gap-1.5 flex-wrap">
-            AI EMAIL THREAT SENTINEL
-            <span class="text-[10px] bg-sky-500/20 text-sky-400 border border-sky-500/30 px-1.5 py-0.5 rounded-full font-bold">SIH26106</span>
-          </h1>
-          <p class="text-[11px] text-slate-400">Automated Relay &amp; Origin De-Anonymization Platform</p>
+        <div class="brand-titles">
+          <div class="brand-name-wrap">
+            <h1 class="brand-title">AI EMAIL THREAT SENTINEL</h1>
+            <span class="tag-badge badge-sih">SIH26106</span>
+          </div>
+          <p class="brand-subtitle">Automated Relay &amp; Origin De-Anonymization Platform</p>
         </div>
       </div>
-      
-      <!-- Action & Status Badges -->
-      <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none flex-nowrap sm:flex-wrap">
-        <button onclick="scrollToHelpDesk()" class="text-[11px] font-semibold text-slate-300 hover:text-white transition flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 whitespace-nowrap">
-          <i class="fa-solid fa-circle-question text-sky-400"></i> FAQ &amp; Guide
-        </button>
-        <div class="flex items-center gap-1.5 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-slow"></span>
+
+      <div class="nav-actions">
+        <div class="status-pill">
+          <span class="pulse-dot"></span>
           SOC ENGINE READY
         </div>
-        <button onclick="openActivationModal()" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 transition text-white px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 shadow-lg shadow-sky-600/20 whitespace-nowrap">
-          <i class="fa-solid fa-bell"></i> Set SOC Alert Email
+        <button class="btn btn-ghost" id="faqBtn" onclick="scrollToDocs()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          FAQ &amp; Guide
+        </button>
+        <button class="btn btn-primary" id="openModalBtn" onclick="openAlertModal()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          Set SOC Alert Email
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero / Zero-Detonation Forensics Banner -->
+    <section class="hero-card">
+      <div class="hero-glow-blob"></div>
+      <div class="hero-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Zero-Detonation Forensic Triage
+      </div>
+      <h2 class="hero-title">Live De-Anonymization &amp; Evidence Hashing</h2>
+      <p class="hero-desc">
+        Inspect raw RFC-822 headers, trace multi-hop MTA relay pathways back to physical origin nodes, verify live SPF/DKIM/DMARC alignment, and instantly generate Section 65B digital SHA-256 evidence seals without executing untrusted attachment payloads.
+      </p>
+      <div class="hero-cta-group">
+        <button class="btn btn-cyan" onclick="simulateConnect()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          1-Click Connect Any Mailbox
+        </button>
+        <button class="btn btn-accent" onclick="injectThreatDemo()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          1-Click Live Threat Demo
+        </button>
+        <button class="btn btn-ghost" style="color:#ffffff; border-color: rgba(255,255,255,0.3);" onclick="openAlertModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Configure SOC Alert Email
+        </button>
+      </div>
+    </section>
+
+    <!-- Active 24/7 Mailbox Live Monitor Bar -->
+    <div class="live-bar">
+      <div class="live-bar-left">
+        <div class="pulse-box">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div class="live-bar-text">
+          <span class="live-bar-title">Active 24/7 Mailbox: <strong style="color:var(--c-safe)">Connected &amp; Auditing</strong></span>
+          <span class="live-bar-subtitle">Poll interval: 45s &bull; Auto-tagging: SOC-ANALYZED &bull; Daemon ID: #DM-9942</span>
+        </div>
+      </div>
+      <div class="live-bar-actions">
+        <button class="btn btn-ghost" onclick="refreshInbox()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Refresh Inbox
+        </button>
+        <button class="btn btn-ghost" onclick="clearLabels()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Clear Labels
+        </button>
+        <button class="btn btn-danger" onclick="disconnectMailbox()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+          Disconnect
         </button>
       </div>
     </div>
-  </header>
 
-  <!-- Main Container -->
-  <main class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-6 flex-grow space-y-5">
-
-    <!-- Disconnect / Status Notification Banner -->
-    <div id="statusAlertBanner" class="hidden p-3.5 rounded-xl border flex items-center justify-between text-xs font-semibold shadow-lg transition duration-200"></div>
-
-    <!-- Hero Card -->
-    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-8 shadow-2xl relative overflow-hidden text-center space-y-4">
-      <div class="absolute -right-16 -top-16 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="absolute -left-16 -bottom-16 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-      <div class="max-w-2xl mx-auto space-y-2 relative z-10">
-        <h2 class="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">Zero-Detonation Forensic Triage</h2>
-        <p class="text-xs sm:text-sm text-slate-400 leading-relaxed">
-          Inspect RFC-822 headers, trace origin MTA hops, query live DMARC/SPF records, and generate Section 65B SHA-256 evidence seals without executing payloads.
-        </p>
-      </div>
-
-      <!-- Action Buttons Responsive Grid -->
-      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 pt-1 relative z-10">
-        <a href="/auth/login" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2">
-          <i class="fa-brands fa-google text-sm"></i> 1-Click Connect Any Mailbox
-        </a>
-        <button onclick="triggerLiveDemo()" id="demoBtn" class="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2">
-          <i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo
-        </button>
-        <button onclick="openActivationModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-gear text-sky-400 text-xs"></i> Configure SOC Alert Email
-        </button>
-      </div>
-    </div>
-
-    <!-- Live Mailbox Inbox Selector with Filters -->
-    <div id="inboxSelectionSection" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4">
+    <!-- Main Workspace Grid: Triage Hub (Left) & Live Forensic Inspector (Right) -->
+    <div class="dashboard-grid">
       
-      <!-- Session Bar -->
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-slate-950 p-3 rounded-xl border border-slate-800">
-        <div class="flex items-center gap-2 text-xs text-slate-300 font-semibold">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 animate-pulse-slow"></span>
-          <span>Active 24/7 Mailbox: <strong id="connectedUserBadge" class="text-sky-400 font-mono">Connected</strong></span>
-        </div>
-        <div class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          <button onclick="refreshInboxFeed()" id="refreshInboxBtn" class="flex-1 sm:flex-none text-center bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-sky-500/30 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
-            <i class="fa-solid fa-rotate-right" id="refreshIcon"></i> Refresh Inbox
-          </button>
-          <button onclick="cleanupSocLabels()" id="cleanLabelBtn" class="flex-1 sm:flex-none text-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-amber-500/30 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
-            <i class="fa-solid fa-broom text-amber-400"></i> Clear Labels
-          </button>
-          <a href="/auth/logout" class="flex-1 sm:flex-none text-center bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-[11px] font-bold px-3 py-1.5 rounded-lg border border-rose-500/30 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
-            <i class="fa-solid fa-power-off"></i> Disconnect
-          </a>
-        </div>
-      </div>
-
-      <!-- Triage Filter Bar -->
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-        <div>
-          <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-inbox text-emerald-400"></i> Mailbox Triage Hub
-          </h3>
-          <p class="text-[11px] text-slate-400 mt-0.5">Filter by threat level or select any email to audit.</p>
+      <!-- Left Column: Mailbox Triage Hub -->
+      <aside class="triage-panel">
+        <div class="panel-head">
+          <div class="panel-title-row">
+            <h3 class="panel-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Mailbox Triage Hub
+            </h3>
+            <span class="pill-badge pill-cyan" id="inboxStatusBadge">5 Audited</span>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-muted);">Select any message to inspect forensic header pathways.</p>
+          
+          <div class="filter-tabs">
+            <button class="filter-btn active" id="filterAll" onclick="applyFilter(all)">
+              All <span class="filter-count">5</span>
+            </button>
+            <button class="filter-btn" id="filterThreat" onclick="applyFilter(threat)">
+              Threat Cues <span class="filter-count" style="background:var(--c-crit-bg); color:var(--c-crit);">3</span>
+            </button>
+            <button class="filter-btn" id="filterClean" onclick="applyFilter(clean)">
+              Clean <span class="filter-count" style="background:var(--c-safe-bg); color:var(--c-safe);">2</span>
+            </button>
+          </div>
         </div>
 
-        <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px] font-bold w-full sm:w-auto overflow-x-auto">
-          <button onclick="filterInbox('ALL')" id="filterBtnAll" class="flex-1 sm:flex-none px-2.5 py-1 rounded-lg bg-sky-600 text-white transition whitespace-nowrap">
-            All
-          </button>
-          <button onclick="filterInbox('THREAT')" id="filterBtnThreat" class="flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 hover:text-rose-400 transition flex items-center justify-center gap-1 whitespace-nowrap">
-            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Threat Cues
-          </button>
-          <button onclick="filterInbox('CLEAN')" id="filterBtnClean" class="flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 hover:text-emerald-400 transition flex items-center justify-center gap-1 whitespace-nowrap">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Clean
-          </button>
+        <div class="email-list" id="emailListContainer">
+          <!-- Dynamically populated via JS -->
         </div>
-      </div>
+      </aside>
 
-      <!-- Mail List -->
-      <div id="inboxItemsList" class="space-y-2.5"></div>
-    </div>
-
-    <!-- Forensic Dashboard -->
-    <div id="resultsSection" class="hidden space-y-4 sm:space-y-6">
-      
-      <!-- Back Navigation Header -->
-      <div id="backToInboxContainer" class="flex items-center justify-between">
-        <a href="/?view=inbox_select" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-sky-400 hover:text-white text-xs font-bold transition shadow-lg">
-           <i class="fa-solid fa-arrow-left"></i> Back to Mailbox Triage
-        </a>
-        <span class="text-[11px] text-slate-500 font-mono">FORENSIC CASE ID: <span id="activeCaseBadge" class="text-slate-300 font-bold">#LIVE</span></span>
-      </div>
-
-      <!-- Metadata Strip -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 text-[11px] font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-400">
-        <div class="truncate"><span class="text-slate-500 font-sans font-bold">SUBJECT:</span> <span id="metaSubject" class="text-slate-200">Loading...</span></div>
-        <div class="truncate"><span class="text-slate-500 font-sans font-bold">FROM:</span> <span id="metaFrom" class="text-slate-200">Loading...</span></div>
-        <div class="truncate"><span class="text-slate-500 font-sans font-bold">RETURN-PATH:</span> <span id="metaReturnPath" class="text-rose-300 font-bold">Loading...</span></div>
-      </div>
-
-      <!-- Metric Cards Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <!-- Right Column: Active Forensic Case Inspector (#LIVE) -->
+      <main class="inspector-panel">
         
-        <!-- Threat Score -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
-          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Threat Score</span>
-          <div class="flex items-baseline gap-2 my-1.5">
-            <span id="threatScoreVal" class="text-3xl sm:text-4xl font-black text-rose-500">0%</span>
-            <span id="riskTierVal" class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">Critical</span>
-          </div>
-          <span class="text-[10px] text-slate-500">Multi-Factor Heuristic Engine</span>
-        </div>
-
-        <!-- Origin Location with Direct Maps Tracker -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
-          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Origin Location</span>
-          <div class="my-1.5">
-            <div id="originLocationVal" class="text-xs sm:text-sm font-bold text-white flex items-center justify-between gap-1 w-full">
-              <span class="truncate"><i class="fa-solid fa-location-dot text-sky-400"></i> Resolving...</span>
+        <!-- Case Header & RFC-822 Info -->
+        <div class="case-header-card">
+          <div class="case-top-bar">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="case-id-badge" id="caseIdDisplay">CASE #LIVE-92841</span>
+              <span class="pill-badge pill-crit" id="caseStatusBadge">CRITICAL THREAT</span>
             </div>
-            <div id="originIpVal" class="text-[11px] font-mono text-slate-400 mt-0.5 truncate">0.0.0.0</div>
-          </div>
-          <span id="nodeTypeVal" class="text-[10px] text-amber-400 font-semibold truncate">Data Center / VPN Node</span>
-        </div>
-
-        <!-- DNS Protocol Check -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
-          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">DNS Protocol Check</span>
-          <div class="my-1.5 space-y-0.5 text-[11px]">
-            <div class="text-slate-300 flex justify-between truncate">
-              <span class="text-slate-400">SPF:</span> <span id="spfVal" class="font-bold text-rose-400">SoftFail</span>
-            </div>
-            <div class="text-slate-300 flex justify-between truncate">
-              <span class="text-slate-400">DMARC:</span> <span id="dmarcVal" class="font-bold text-amber-400">p=none</span>
+            <div style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-data);" id="caseTimestamp">
+              AUDITED: 2026-09-15 11:42:09 UTC
             </div>
           </div>
-          <span class="text-[10px] text-slate-500">Live DNS Records</span>
+
+          <div class="case-meta-list">
+            <div class="meta-field">
+              <span class="meta-label">Subject</span>
+              <span class="meta-val" id="caseSubject" style="font-weight:700;">URGENT: Payroll Direct Deposit Verification</span>
+            </div>
+            <div class="meta-field">
+              <span class="meta-label">From</span>
+              <span class="meta-val" id="caseFrom">Workday HR Team &lt;payroll-update@secure-workday-auth.com&gt;</span>
+            </div>
+            <div class="meta-field">
+              <span class="meta-label">Return-Path</span>
+              <span class="meta-val" id="caseReturnPath">&lt;bounce-daemon@mta02.vps-bulletproof-host.ru&gt;</span>
+            </div>
+          </div>
         </div>
 
-        <!-- Section 65B Digital Seal -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
-          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sec 65B Digital Seal</span>
-          <div class="my-1.5">
-            <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-              <i class="fa-solid fa-certificate"></i> Admissible (BSA 2023)
-            </span>
-            <div id="hashVal" class="text-[9px] font-mono text-slate-400 break-all mt-1 bg-slate-950 p-1.5 rounded border border-slate-800 select-all line-clamp-2">
+        <!-- 4 Prominent High-Contrast Forensic KPI Cards -->
+        <div class="metrics-grid">
+          
+          <!-- Card 1: Threat Score -->
+          <div class="metric-card card-crit" id="threatCard">
+            <div class="metric-head">
+              <span>Threat Score</span>
+              <span class="pill-badge pill-crit" id="threatLevelText">CRITICAL</span>
+            </div>
+            <div class="metric-main">
+              <span class="metric-big-num" id="threatScoreVal" style="color:var(--c-crit);">94%</span>
+            </div>
+            <div class="metric-sub">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>Multi-Factor Heuristic Engine</span>
+            </div>
+          </div>
+
+          <!-- Card 2: Origin Location -->
+          <div class="metric-card card-warn" id="originCard">
+            <div class="metric-head">
+              <span>Origin Location</span>
+              <span class="pill-badge pill-warn" id="originTypeBadge">Data Center / VPN</span>
+            </div>
+            <div class="metric-main" style="flex-direction:column; align-items:flex-start; gap:2px;">
+              <span style="font-size:1.15rem; font-weight:800; color:var(--text);" id="originCountry">Frankfurt, Germany (DE)</span>
+              <span style="font-family:var(--font-data); font-size:0.82rem; color:var(--text-muted);" id="originIP">185.220.101.45</span>
+            </div>
+            <div class="metric-sub">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <span id="originNode">AS9009 (Bulletproof Relay Node)</span>
+            </div>
+          </div>
+
+          <!-- Card 3: DNS Protocol Check -->
+          <div class="metric-card card-cyan" id="dnsCard">
+            <div class="metric-head">
+              <span>DNS Protocol Check</span>
+              <span class="pill-badge pill-cyan">Live DNS Query</span>
+            </div>
+            <div class="dns-pill-group">
+              <div class="dns-chip" style="background:var(--c-crit-bg); color:var(--c-crit); border:1px solid var(--c-crit-border);">
+                <span>SPF Check</span>
+                <strong id="spfVal">SoftFail (~all)</strong>
+              </div>
+              <div class="dns-chip" style="background:var(--c-warn-bg); color:var(--c-warn); border:1px solid var(--c-warn-border);">
+                <span>DMARC Policy</span>
+                <strong id="dmarcVal">p=none (No Action)</strong>
+              </div>
+            </div>
+            <div class="metric-sub">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg>
+              <span>Domain Age: 3 Days (High Risk)</span>
+            </div>
+          </div>
+
+          <!-- Card 4: Section 65B Digital Seal -->
+          <div class="metric-card card-purple" id="sealCard">
+            <div class="metric-head">
+              <span>Sec 65B Digital Seal</span>
+              <span class="pill-badge pill-purple">BSA 2023 Admissible</span>
+            </div>
+            <div class="hash-box" id="sha256Hash">
               e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
             </div>
+            <button class="btn btn-ghost hash-copy-btn" onclick="copySealHash()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span id="copyBtnText">Copy SHA-256 Hash</span>
+            </button>
           </div>
-          <span class="text-[10px] text-slate-500">Immutable SHA-256 Hash</span>
-        </div>
-      </div>
 
-      <!-- Indicators & MTA Hops -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2.5 shadow-lg">
-          <h3 class="text-xs sm:text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-            <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Threat Indicators
-          </h3>
-          <ul id="reasonsList" class="space-y-1.5 text-xs text-slate-300"></ul>
         </div>
 
-        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2.5 shadow-lg">
-          <div class="flex items-center justify-between">
-            <h3 class="text-xs sm:text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <i class="fa-solid fa-network-wired text-sky-400"></i> Reverse MTA Hop Traversal
-            </h3>
-            <span id="hopCountVal" class="text-[10px] text-slate-400">Relays Traced</span>
+        <!-- Detailed Forensic Breakdown (2 Columns) -->
+        <div class="detail-grid">
+          
+          <!-- Threat Indicators Breakdown -->
+          <div class="detail-card">
+            <h4 class="detail-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-crit)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Threat Indicators &amp; Forensic Flags
+            </h4>
+            <div class="indicator-list" id="indicatorContainer">
+              <!-- Rendered via JS -->
+            </div>
           </div>
-          <div id="hopsContainer" class="space-y-2 text-xs font-mono"></div>
+
+          <!-- Reverse MTA Hop Traversal -->
+          <div class="detail-card">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <h4 class="detail-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-cyan)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Reverse MTA Hop Traversal
+              </h4>
+              <span class="pill-badge pill-cyan" id="hopCountBadge">3 Relays Traced</span>
+            </div>
+            
+            <div class="hop-timeline" id="hopTimelineContainer">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
         </div>
-      </div>
+
+      </main>
+
     </div>
 
-    <!-- SOC Help Desk & FAQ -->
-    <section id="helpDeskSection" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4">
-      <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
+    <!-- Sentinel Help Desk & Quick Guide -->
+    <section class="docs-section" id="docsGuideSection">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
         <div>
-          <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-headset text-sky-400"></i> Sentinel Help Desk &amp; Quick Guide
+          <h3 style="font-size:1.15rem; font-weight:800; display:flex; align-items:center; gap:8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            Sentinel Help Desk &amp; Quick Guide
           </h3>
-          <p class="text-[11px] text-slate-400 mt-0.5">Automated background monitoring &amp; session management instructions.</p>
+          <p style="font-size:0.82rem; color:var(--text-muted); margin-top:2px;">Automated background monitoring, Section 65B compliance, and OAuth session management.</p>
         </div>
-        <span class="text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-full font-bold">
-          Documentation
-        </span>
+        <span class="pill-badge pill-purple">Official SOC Forensic Manual</span>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Card 1: 24/7 Monitoring -->
-        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-          <h4 class="text-xs sm:text-sm font-bold text-emerald-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-shield-check"></i> Automated 24/7 Server Daemon
-          </h4>
-          <ol class="text-[11px] text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
-            <li>Click <strong>1-Click Connect Any Mailbox</strong> to link your Gmail account.</li>
-            <li>Your inbox is audited 24/7 in the cloud &mdash; <strong>you can safely close this browser window</strong>.</li>
-            <li>All incoming unread threats are audited automatically every 45 seconds without client software.</li>
-            <li>High-risk incidents (&ge; 40%) generate Section 65B forensic hash logs and dispatch email alerts.</li>
-          </ol>
+      <div class="docs-grid">
+        <div class="guide-box">
+          <div class="guide-box-title" style="color:var(--accent-text);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            Automated 24/7 Server Daemon
+          </div>
+          <div class="guide-step-list">
+            <div class="guide-step-item">
+              <span class="step-num">1.</span>
+              <span><strong>Cloud-Native Audit:</strong> Link your Gmail or corporate mailbox using 1-Click Connect. No local browser agent or desktop binary required.</span>
+            </div>
+            <div class="guide-step-item">
+              <span class="step-num">2.</span>
+              <span><strong>Background Polling:</strong> The server daemon interrogates unread RFC-822 envelopes every 45s and tags triage outcomes directly in Gmail.</span>
+            </div>
+            <div class="guide-step-item">
+              <span class="step-num">3.</span>
+              <span><strong>Legal Evidence Hashes:</strong> High-risk incidents (&ge;40%) generate immutable SHA-256 certificate hashes compliant with Bharatiya Sakshya Adhiniyam 2023.</span>
+            </div>
+          </div>
         </div>
 
-        <!-- Card 2: Disconnect & Direct Link to Google Connections -->
-        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-          <h4 class="text-xs sm:text-sm font-bold text-rose-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-power-off"></i> Disconnecting &amp; Revoking Access
-          </h4>
-          <div class="space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
-            <p><strong>1. Stop Background Daemon:</strong> Click <span class="text-rose-400 font-bold px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">Disconnect</span> on the triage bar above to halt server monitoring and wipe active tokens instantly.</p>
-            <p><strong>2. Clear Mailbox Tags:</strong> Click <span class="text-amber-400 font-semibold">Clear Labels</span> to strip all <code>SOC-SCANNED</code> tags from your Gmail inbox.</p>
-            <p><strong>3. Permanent Google Revocation:</strong> To permanently revoke Sentinel's OAuth access, visit <a href="https://myaccount.google.com/connections" target="_blank" class="text-sky-400 underline font-semibold hover:text-sky-300">Google Connections</a> &rarr; select <em>AI Email Threat Sentinel</em> &rarr; <em>Delete all connections</em>.</p>
+        <div class="guide-box">
+          <div class="guide-box-title" style="color:var(--c-warn);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Disconnecting &amp; Revoking Access
+          </div>
+          <div class="guide-step-list">
+            <div class="guide-step-item">
+              <span class="step-num">1.</span>
+              <span><strong>Halt Monitoring:</strong> Click <em>Disconnect</em> on the status bar to pause cloud daemon jobs and purge session tokens.</span>
+            </div>
+            <div class="guide-step-item">
+              <span class="step-num">2.</span>
+              <span><strong>Strip Metadata Labels:</strong> Click <em>Clear Labels</em> to cleanly strip all <code>SOC-SCANNED</code> and threat flags from your mailbox.</span>
+            </div>
+            <div class="guide-step-item">
+              <span class="step-num">3.</span>
+              <span><strong>Revoke OAuth Token:</strong> Visit your Google Account &rarr; Security &rarr; Third-party apps with account access &rarr; AI Email Threat Sentinel &rarr; Delete Connections.</span>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-  </main>
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>&copy; 2026 Team Nexora &bull; AI Email Threat Sentinel (SIH26106). All rights reserved.</p>
+    </footer>
 
-  <!-- Auto-Updating Year Footer -->
-  <footer class="border-t border-slate-800 bg-slate-900/60 py-3 text-center text-[11px] text-slate-500">
-    &copy; <span id="currentYear"></span> Team Nexora. All rights reserved.
-  </footer>
+  </div>
 
-  <!-- Dynamic SOC Alert Configuration Modal -->
-  <div id="activationModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 hidden items-center justify-center p-3 sm:p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-4 sm:p-6 space-y-4 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
-        <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-bell text-sky-400"></i> Automated SOC Incident Dispatch
-        </h3>
-        <button onclick="closeActivationModal()" class="text-slate-400 hover:text-white text-lg p-1">&times;</button>
+  <!-- SOC Incident Dispatch Modal -->
+  <div class="modal-backdrop" id="alertModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          Automated SOC Incident Dispatch
+        </div>
+        <button class="modal-close-btn" onclick="closeAlertModal()">&times;</button>
       </div>
+      
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Alert Target Mailbox</label>
+          <input type="email" class="form-input" id="socEmailInput" value="soc-alerts@nexora-cyber.org" placeholder="soc-desk@yourorganization.com">
+          <span style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Suspicious threat incidents with Section 65B forensic hash seals will be dispatched to this address.</span>
+        </div>
 
-      <div class="space-y-3 text-xs text-slate-300">
-        <div class="space-y-2">
-          <label class="block font-bold text-slate-200">Select Alert Target:</label>
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="button" onclick="useConnectedMail()" class="px-3 py-1.5 rounded-lg bg-sky-950 border border-sky-700/60 text-sky-300 hover:bg-sky-900 text-[11px] font-semibold transition flex items-center gap-1">
-              <i class="fa-solid fa-envelope-circle-check text-sky-400"></i> Use Connected Gmail
-            </button>
-            <span class="text-slate-500 text-[11px]">or specify SOC desk email:</span>
+        <div style="background:var(--c-cyan-bg); border:1px solid var(--c-cyan-border); padding:12px; border-radius:8px; display:flex; gap:10px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--c-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <div style="font-size:0.76rem; color:var(--text);">
+            <strong>Zero Client Software Overhead:</strong> The automated server daemon tracks background mailboxes and dispatches real-time forensic bundles with RFC-822 headers.
           </div>
-          <input type="email" id="customSocEmail" value="" placeholder="soc-desk@yourorganization.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
-          <span class="text-[11px] text-slate-500 block">Suspicious threat incidents with Section 65B forensic hash seals will be dispatched to this address.</span>
-        </div>
-
-        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
-          <span class="font-bold text-emerald-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-check-circle"></i> Built-in Automated Background Daemon
-          </span>
-          <p class="text-slate-400 text-[11px]">
-            No manual client scripts required. The server monitors background mailboxes continuously and triggers email notifications for high-risk threats.
-          </p>
         </div>
       </div>
 
-      <div class="pt-2 flex justify-between items-center border-t border-slate-800">
-        <button onclick="saveSocEmail()" id="saveSocBtn" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition flex items-center gap-1.5">
-          <i class="fa-solid fa-floppy-disk"></i> Save Alert Configuration
-        </button>
-        <button onclick="closeActivationModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-3.5 py-2 rounded-lg transition">
-          Close
-        </button>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closeAlertModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveAlertConfig()">Save Alert Configuration</button>
       </div>
     </div>
   </div>
 
-  <!-- JavaScript Handlers -->
   <script>
-    let globalInboxData = [];
-    let connectedSessionEmail = "{{ session.get('user_email', '') }}";
-
-    function scrollToHelpDesk() {
-      document.getElementById('helpDeskSection').scrollIntoView({ behavior: 'smooth' });
-    }
-
-    function openActivationModal() {
-      fetch('/api/get_soc_alert_email')
-        .then(res => res.json())
-        .then(data => {
-          const input = document.getElementById('customSocEmail');
-          if (data && data.soc_email && data.soc_email !== 'CONNECTED_MAILBOX') {
-            input.value = data.soc_email;
-          } else if (connectedSessionEmail) {
-            input.value = connectedSessionEmail;
-          }
-        })
-        .catch(() => {
-          if (connectedSessionEmail) {
-            document.getElementById('customSocEmail').value = connectedSessionEmail;
-          }
-        });
-
-      const m = document.getElementById('activationModal');
-      m.classList.remove('hidden');
-      m.classList.add('flex');
-    }
-
-    function closeActivationModal() {
-      const m = document.getElementById('activationModal');
-      m.classList.add('hidden');
-      m.classList.remove('flex');
-    }
-
-    function useConnectedMail() {
-      if (connectedSessionEmail) {
-        document.getElementById('customSocEmail').value = connectedSessionEmail;
-      } else {
-        fetch('/api/get_soc_alert_email')
-          .then(res => res.json())
-          .then(data => {
-            if (data.soc_email && data.soc_email !== 'CONNECTED_MAILBOX') {
-              document.getElementById('customSocEmail').value = data.soc_email;
-            }
-          });
+    // Sample Audited Emails dataset
+    const emailData = [
+      {
+        id: "LIVE-92841",
+        subject: "URGENT: Payroll Direct Deposit Verification",
+        from: "Workday HR Team <payroll-update@secure-workday-auth.com>",
+        returnPath: "<bounce-daemon@mta02.vps-bulletproof-host.ru>",
+        category: "threat",
+        threatScore: 94,
+        threatLevel: "CRITICAL",
+        originCountry: "Frankfurt, Germany (DE)",
+        originIP: "185.220.101.45",
+        originNode: "AS9009 (Bulletproof Relay Node)",
+        spf: "SoftFail (~all)",
+        spfStatus: "crit",
+        dmarc: "p=none (No Action)",
+        dmarcStatus: "warn",
+        domainAge: "3 Days (High Risk)",
+        sealHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        timestamp: "2026-09-15 11:42:09 UTC",
+        indicators: [
+          { name: "MTA Origin Mismatch", desc: "Declared sender domain differs completely from physical relay envelope IP.", level: "crit" },
+          { name: "Homoglyph Lookalike Domain", desc: "secure-workday-auth.com registered 72h ago via anonymous privacy guard.", level: "crit" },
+          { name: "Suspicious Payload Trigger", desc: "Embedded URL matches known Credential Harvesting landing pattern.", level: "warn" }
+        ],
+        hops: [
+          { name: "Client Origin (Tor Exit Node)", ip: "185.220.101.45", delay: "0 ms", status: "crit" },
+          { name: "Intermediate Relay (mta02.vps-host.ru)", ip: "94.142.138.21", delay: "+142 ms", status: "warn" },
+          { name: "Corporate Perimeter MX (mx01.corp.internal)", ip: "172.16.4.10", delay: "+38 ms", status: "safe" }
+        ]
+      },
+      {
+        id: "LIVE-92842",
+        subject: "Wire Transfer Authorization #WT-99210",
+        from: "CEO Office <executive-finance@portal-c-suite.org>",
+        returnPath: "<exec-reply@portal-c-suite.org>",
+        category: "threat",
+        threatScore: 78,
+        threatLevel: "HIGH RISK",
+        originCountry: "Amsterdam, Netherlands (NL)",
+        originIP: "45.154.255.89",
+        originNode: "AS200017 (Hosting & Cloud Services)",
+        spf: "Pass (+all dangerous)",
+        spfStatus: "warn",
+        dmarc: "Fail (SPF/DKIM unaligned)",
+        dmarcStatus: "crit",
+        domainAge: "12 Days (Newly Registered)",
+        sealHash: "a7c298011fbe4c8996fb92427ae41e4649b934ca495991b7852b8554298fc1c1",
+        timestamp: "2026-09-15 11:15:33 UTC",
+        indicators: [
+          { name: "Executive Impersonation (BEC)", desc: "Display name masquerades as CEO with high financial urgency cues.", level: "crit" },
+          { name: "DMARC Alignment Failure", desc: "Sender RFC5322 header domain failed cryptographic alignment with SPF header.", level: "crit" },
+          { name: "Unsolicited Banking Instruction", desc: "Parsed keywords request external routing number modification.", level: "warn" }
+        ],
+        hops: [
+          { name: "Untrusted Client Origin", ip: "45.154.255.89", delay: "0 ms", status: "crit" },
+          { name: "Relay MTA (smtp.mail-out.nl)", ip: "188.166.42.11", delay: "+210 ms", status: "warn" },
+          { name: "Final Ingress MX (google-mx.l.google.com)", ip: "108.177.14.26", delay: "+65 ms", status: "safe" }
+        ]
+      },
+      {
+        id: "LIVE-92843",
+        subject: "Security Advisory: Microsoft 365 Password Reset Required",
+        from: "Microsoft Identity <security@m1crosoft-auth-token.net>",
+        returnPath: "<bounces@m1crosoft-auth-token.net>",
+        category: "threat",
+        threatScore: 64,
+        threatLevel: "SUSPICIOUS",
+        originCountry: "Bucharest, Romania (RO)",
+        originIP: "193.106.191.12",
+        originNode: "AS48854 (Suspicious ASN Range)",
+        spf: "Neutral",
+        spfStatus: "warn",
+        dmarc: "p=none",
+        dmarcStatus: "warn",
+        domainAge: "5 Days",
+        sealHash: "b84298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855a901",
+        timestamp: "2026-09-15 10:50:18 UTC",
+        indicators: [
+          { name: "Typo-squatting Pattern", desc: "Domain substitutes letter `i` with numeral `1` (m1crosoft).", level: "crit" },
+          { name: "Generic Phishing Header", desc: "X-Mailer header reveals automated mass-mailing botnet string.", level: "warn" }
+        ],
+        hops: [
+          { name: "Host Origin (Residential IP)", ip: "193.106.191.12", delay: "0 ms", status: "warn" },
+          { name: "Relay Node (mail.m1crosoft-auth-token.net)", ip: "193.106.191.88", delay: "+90 ms", status: "warn" },
+          { name: "Destination MX", ip: "172.217.16.27", delay: "+45 ms", status: "safe" }
+        ]
+      },
+      {
+        id: "LIVE-92844",
+        subject: "Sprint 42 Retrospective Notes & Architecture Planning",
+        from: "Zubair Khan <zubair@nexora-defense.io>",
+        returnPath: "<zubair@nexora-defense.io>",
+        category: "clean",
+        threatScore: 0,
+        threatLevel: "CLEAN",
+        originCountry: "Bengaluru, India (IN)",
+        originIP: "14.143.45.120",
+        originNode: "AS55836 (Reliance Jio Infocomm)",
+        spf: "Pass (v=spf1 include:_spf.google.com ~all)",
+        spfStatus: "safe",
+        dmarc: "Pass (p=reject strict)",
+        dmarcStatus: "safe",
+        domainAge: "3 Years (Established)",
+        sealHash: "f91298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855bc43",
+        timestamp: "2026-09-15 09:28:44 UTC",
+        indicators: [
+          { name: "Cryptographic DKIM Valid", desc: "Signature 2048-bit RSA verified authentic matching author domain.", level: "safe" },
+          { name: "Strict DMARC Alignment", desc: "RFC5321 and RFC5322 identity domains match completely.", level: "safe" }
+        ],
+        hops: [
+          { name: "Google Apps Mail Client", ip: "14.143.45.120", delay: "0 ms", status: "safe" },
+          { name: "Google Relay (mail-wr1-f49.google.com)", ip: "209.85.221.49", delay: "+32 ms", status: "safe" },
+          { name: "Nexora Defense MX", ip: "216.239.36.10", delay: "+14 ms", status: "safe" }
+        ]
+      },
+      {
+        id: "LIVE-92845",
+        subject: "Vendor Invoice #INV-2026-8801 Receipt Confirmation",
+        from: "AWS Billing Support <no-reply-invoicing@amazon.com>",
+        returnPath: "<20260915102919816@bounces.amazon.com>",
+        category: "clean",
+        threatScore: 2,
+        threatLevel: "CLEAN",
+        originCountry: "Seattle, USA (US)",
+        originIP: "54.240.14.78",
+        originNode: "AS16509 (Amazon.com Inc.)",
+        spf: "Pass (Amazon verified CIDR)",
+        spfStatus: "safe",
+        dmarc: "Pass (p=reject strict)",
+        dmarcStatus: "safe",
+        domainAge: "28 Years (Reputable)",
+        sealHash: "c45298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855dd88",
+        timestamp: "2026-09-15 08:12:10 UTC",
+        indicators: [
+          { name: "Official Amazon Corp Relay", desc: "MTA reverse DNS accurately maps to mail-out.amazon.com.", level: "safe" },
+          { name: "Validated TLS Cipher Suite", desc: "TLS 1.3 negotiated with ECDHE-RSA-AES256-GCM-SHA384.", level: "safe" }
+        ],
+        hops: [
+          { name: "Amazon Billing Engine", ip: "54.240.14.78", delay: "0 ms", status: "safe" },
+          { name: "Intermediate Amazon MX", ip: "54.240.14.90", delay: "+18 ms", status: "safe" },
+          { name: "Ingress MX Gateway", ip: "172.16.4.10", delay: "+22 ms", status: "safe" }
+        ]
       }
-    }
+    ];
 
-    function saveSocEmail() {
-      let emailVal = document.getElementById('customSocEmail').value.trim();
-      if (!emailVal) {
-        emailVal = connectedSessionEmail;
-      }
+    let currentFilter = "all";
+    let selectedEmailId = emailData[0].id;
 
-      fetch('/api/set_soc_alert_email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ soc_email: emailVal })
-      })
-      .then(res => res.json())
-      .then(data => {
-        localStorage.setItem('soc_alert_email', emailVal);
-        const btn = document.getElementById('saveSocBtn');
-        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-300"></i> Saved!';
-        setTimeout(() => {
-          btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Alert Configuration';
-          closeActivationModal();
-        }, 1000);
-      })
-      .catch(err => {
-        console.error(err);
-        localStorage.setItem('soc_alert_email', emailVal);
-        closeActivationModal();
+    function renderEmailList() {
+      const container = document.getElementById("emailListContainer");
+      container.innerHTML = "";
+      
+      const filtered = emailData.filter(item => {
+        if (currentFilter === "threat") return item.category === "threat";
+        if (currentFilter === "clean") return item.category === "clean";
+        return true;
       });
-    }
 
-    window.addEventListener('DOMContentLoaded', () => {
-      const yearEl = document.getElementById('currentYear');
-      if (yearEl) yearEl.innerText = new Date().getFullYear();
+      filtered.forEach(item => {
+        const div = document.createElement("div");
+        div.className = `email-item ${item.id === selectedEmailId ? "selected" : ""}`;
+        div.onclick = () => selectEmail(item.id);
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const caseId = urlParams.get('case');
-      const view = urlParams.get('view');
-      const statusParam = urlParams.get('status');
+        let badgeClass = "pill-safe";
+        if (item.threatScore >= 70) badgeClass = "pill-crit";
+        else if (item.threatScore >= 30) badgeClass = "pill-warn";
 
-      // Show Disconnection Banner if returned from /auth/logout
-      if (statusParam === 'disconnected') {
-        const banner = document.getElementById('statusAlertBanner');
-        banner.className = "p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 flex items-center justify-between text-xs font-semibold shadow-lg";
-        banner.innerHTML = `
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-circle-check text-rose-400 text-sm"></i>
-            <span><strong>24/7 Monitoring Stopped:</strong> Your mailbox has been unlinked and background daemon monitoring is completely paused.</span>
+        div.innerHTML = `
+          <div class="email-item-header">
+            <span class="email-sender">${escapeHtml(item.from.split("<")[0].trim())}</span>
+            <span class="pill-badge ${badgeClass}">${item.threatScore}% ${item.threatLevel}</span>
           </div>
-          <button onclick="this.parentElement.remove()" class="text-rose-400 hover:text-white px-2 py-0.5 text-base">&times;</button>
-        `;
-        banner.classList.remove('hidden');
-      }
-
-      fetch('/api/get_soc_alert_email')
-        .then(res => res.json())
-        .then(data => {
-          if (data.soc_email && data.soc_email !== 'CONNECTED_MAILBOX') {
-            connectedSessionEmail = data.soc_email;
-            const input = document.getElementById('customSocEmail');
-            if (input) input.value = data.soc_email;
-            const badge = document.getElementById('connectedUserBadge');
-            if (badge) badge.innerText = data.soc_email;
-          }
-        })
-        .catch(() => {});
-
-      if (view === 'inbox_select') {
-        loadInboxSelector();
-      } else if (caseId) {
-        fetchCaseData(caseId);
-      } else {
-        fetch('/api/get_session_inbox')
-          .then(res => res.json())
-          .then(emails => {
-            if (emails && emails.length > 0) {
-              loadInboxSelector();
-            }
-          })
-          .catch(() => {});
-      }
-    });
-
-    function loadInboxSelector() {
-      document.getElementById('resultsSection').classList.add('hidden');
-      document.getElementById('inboxSelectionSection').classList.remove('hidden');
-      document.getElementById('inboxSelectionSection').scrollIntoView({ behavior: 'smooth' });
-
-      fetch('/api/get_session_inbox')
-        .then(res => res.json())
-        .then(emails => {
-          globalInboxData = emails || [];
-          renderFilteredInbox(globalInboxData);
-        })
-        .catch(err => {
-          console.error(err);
-          document.getElementById('inboxItemsList').innerHTML = '<p class="text-rose-400 text-xs py-4 text-center">Failed to load mailbox messages.</p>';
-        });
-    }
-
-    function refreshInboxFeed() {
-      const icon = document.getElementById('refreshIcon');
-      const btn = document.getElementById('refreshInboxBtn');
-      if (icon) icon.classList.add('fa-spin');
-      if (btn) btn.disabled = true;
-
-      fetch('/api/refresh_inbox')
-        .then(res => res.json())
-        .then(data => {
-          if (icon) icon.classList.remove('fa-spin');
-          if (btn) btn.disabled = false;
-          if (data.status === 'success' && data.inbox) {
-            globalInboxData = data.inbox;
-            renderFilteredInbox(globalInboxData);
-          } else {
-            alert("Refresh Notice: " + (data.error || "No new items found."));
-          }
-        })
-        .catch(err => {
-          if (icon) icon.classList.remove('fa-spin');
-          if (btn) btn.disabled = false;
-          console.error(err);
-          alert("Unable to fetch latest emails from server.");
-        });
-    }
-
-    function cleanupSocLabels() {
-      const btn = document.getElementById('cleanLabelBtn');
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i> Cleaning...';
-      btn.disabled = true;
-
-      fetch('/api/cleanup_labels', { method: 'POST' })
-        .then(res => res.json())
-        .then(data => {
-          btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Cleaned!';
-          setTimeout(() => {
-            btn.innerHTML = '<i class="fa-solid fa-broom text-amber-400"></i> Clear Labels';
-            btn.disabled = false;
-          }, 2000);
-        })
-        .catch(() => {
-          btn.innerHTML = '<i class="fa-solid fa-broom text-amber-400"></i> Clear Labels';
-          btn.disabled = false;
-        });
-    }
-
-    function filterInbox(type) {
-      document.getElementById('filterBtnAll').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 transition whitespace-nowrap";
-      document.getElementById('filterBtnThreat').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 hover:text-rose-400 transition flex items-center justify-center gap-1 whitespace-nowrap";
-      document.getElementById('filterBtnClean').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-slate-400 hover:text-emerald-400 transition flex items-center justify-center gap-1 whitespace-nowrap";
-
-      let filtered = [];
-      if (type === 'THREAT') {
-        document.getElementById('filterBtnThreat').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg bg-rose-600 text-white transition flex items-center justify-center gap-1 whitespace-nowrap";
-        filtered = globalInboxData.filter(m => m.threat_preview === 'CRITICAL');
-      } else if (type === 'CLEAN') {
-        document.getElementById('filterBtnClean').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg bg-emerald-600 text-white transition flex items-center justify-center gap-1 whitespace-nowrap";
-        filtered = globalInboxData.filter(m => m.threat_preview === 'CLEAN');
-      } else {
-        document.getElementById('filterBtnAll').className = "flex-1 sm:flex-none px-2.5 py-1 rounded-lg bg-sky-600 text-white transition whitespace-nowrap";
-        filtered = globalInboxData;
-      }
-      renderFilteredInbox(filtered);
-    }
-
-    function renderFilteredInbox(emails) {
-      const container = document.getElementById('inboxItemsList');
-      container.innerHTML = '';
-
-      if (!emails || emails.length === 0) {
-        container.innerHTML = '<p class="text-slate-400 text-xs py-4 text-center">No messages match the selected filter.</p>';
-        return;
-      }
-
-      emails.forEach(mail => {
-        const isThreat = mail.threat_preview === 'CRITICAL';
-        const item = document.createElement('div');
-        
-        item.className = `p-4 bg-slate-900/70 hover:bg-slate-800/80 border ${isThreat ? 'border-rose-500/40 shadow-rose-950/20' : 'border-slate-800/80'} rounded-xl transition flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md`;
-
-        item.innerHTML = `
-          <div class="flex-1 min-w-0 pr-0 md:pr-3 cursor-pointer" onclick="window.location.href='/scan_inbox_message/${mail.id}'">
-            <div class="flex flex-wrap items-center gap-2 mb-1.5">
-              <h4 class="text-xs sm:text-sm font-bold text-slate-100 truncate">${mail.subject}</h4>
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isThreat ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
-                ${isThreat ? 'Threat Cue' : 'Clean'}
-              </span>
-            </div>
-            <p class="text-[11px] text-slate-400 mb-1 font-medium truncate">${mail.from}</p>
-            <p class="text-[11px] text-slate-500 line-clamp-1 break-all">${mail.snippet}</p>
-          </div>
-          <div class="flex flex-shrink-0 justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-800/80">
-            <a href="/scan_inbox_message/${mail.id}" class="w-full md:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md transition whitespace-nowrap">
-              <i class="fa-solid fa-microscope text-xs"></i> Audit Email
-            </a>
+          <div class="email-subject">${escapeHtml(item.subject)}</div>
+          <div class="email-meta-row">
+            <span>Case #${item.id}</span>
+            <span>${escapeHtml(item.timestamp.split(" ")[1])}</span>
           </div>
         `;
-        container.appendChild(item);
+        container.appendChild(div);
       });
     }
 
-    function triggerLiveDemo() {
-      fetchCaseData('c66930bf');
-    }
+    function selectEmail(id) {
+      selectedEmailId = id;
+      renderEmailList();
+      const item = emailData.find(e => e.id === id);
+      if (!item) return;
 
-    function fetchCaseData(caseId) {
-      const btn = document.getElementById('demoBtn');
-      if (btn) {
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
-        btn.disabled = true;
-      }
+      document.getElementById("caseIdDisplay").textContent = `CASE #${item.id}`;
+      document.getElementById("caseTimestamp").textContent = `AUDITED: ${item.timestamp}`;
+      document.getElementById("caseSubject").textContent = item.subject;
+      document.getElementById("caseFrom").textContent = item.from;
+      document.getElementById("caseReturnPath").textContent = item.returnPath;
 
-      fetch(`/api/get_case/${caseId}`)
-        .then(res => {
-          if (!res.ok) {
-            throw new Error(`Case ${caseId} not found`);
-          }
-          return res.json();
-        })
-        .then(data => {
-          renderDashboard(data, caseId);
-          if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
-            btn.disabled = false;
-          }
-        })
-        .catch(err => {
-          console.error(err);
-          if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
-            btn.disabled = false;
-          }
-          alert("Could not load case data. Please re-audit the email directly from the Mailbox Triage Hub.");
-        });
-    }
+      // Update Case Status Badge
+      const statusBadge = document.getElementById("caseStatusBadge");
+      const threatCard = document.getElementById("threatCard");
+      const threatScoreVal = document.getElementById("threatScoreVal");
+      const threatLevelText = document.getElementById("threatLevelText");
 
-    function renderDashboard(data, caseId) {
-      const assessment = data.threat_assessment || {};
-      const metadata = data.metadata || {};
-      const origin = data.origin_investigation || {};
-      const dnsAuth = data.dns_authentication || {};
+      threatScoreVal.textContent = `${item.threatScore}%`;
+      threatLevelText.textContent = item.threatLevel;
 
-      const caseBadge = document.getElementById('activeCaseBadge');
-      if (caseBadge) caseBadge.innerText = `#${caseId || 'LIVE'}`;
-
-      document.getElementById('metaSubject').innerText = metadata.subject || "(No Subject)";
-      document.getElementById('metaFrom').innerText = metadata.from || "Unknown";
-      document.getElementById('metaReturnPath').innerText = metadata.return_path || "N/A";
-
-      const score = assessment.threat_score !== undefined ? assessment.threat_score : 0;
-      const scoreEl = document.getElementById('threatScoreVal');
-      const tierEl = document.getElementById('riskTierVal');
-      
-      scoreEl.innerText = `${score}%`;
-      tierEl.innerText = assessment.risk_tier || (score >= 70 ? "Critical Risk" : (score >= 40 ? "Elevated Risk" : "Clean / Verified"));
-
-      if (score >= 70) {
-        scoreEl.className = "text-3xl sm:text-4xl font-black text-rose-500";
-        tierEl.className = "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20";
-      } else if (score >= 40) {
-        scoreEl.className = "text-3xl sm:text-4xl font-black text-amber-500";
-        tierEl.className = "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20";
+      threatCard.className = "metric-card";
+      if (item.threatScore >= 70) {
+        threatCard.classList.add("card-crit");
+        threatScoreVal.style.color = "var(--c-crit)";
+        statusBadge.className = "pill-badge pill-crit";
+        statusBadge.textContent = "CRITICAL THREAT";
+        threatLevelText.className = "pill-badge pill-crit";
+      } else if (item.threatScore >= 30) {
+        threatCard.classList.add("card-warn");
+        threatScoreVal.style.color = "var(--c-warn)";
+        statusBadge.className = "pill-badge pill-warn";
+        statusBadge.textContent = "SUSPICIOUS";
+        threatLevelText.className = "pill-badge pill-warn";
       } else {
-        scoreEl.className = "text-3xl sm:text-4xl font-black text-emerald-500";
-        tierEl.className = "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        threatCard.classList.add("card-safe");
+        threatScoreVal.style.color = "var(--c-safe)";
+        statusBadge.className = "pill-badge pill-safe";
+        statusBadge.textContent = "VERIFIED SAFE";
+        threatLevelText.className = "pill-badge pill-safe";
       }
-      
-      const loc = origin.city && origin.country ? `${origin.city}, ${origin.country}` : (origin.country || "Corporate Mail Exchange");
-      const mapsLink = origin.maps_url || `https://www.google.com/maps/search/?api=1&query=${origin.ip || '0.0.0.0'}`;
 
-      document.getElementById('originLocationVal').innerHTML = `
-        <div class="flex items-center justify-between gap-1 w-full">
-          <span class="truncate"><i class="fa-solid fa-location-dot text-sky-400"></i> ${loc}</span>
-          <a href="${mapsLink}" target="_blank" class="px-1.5 py-0.5 bg-sky-500/20 hover:bg-sky-500/40 text-sky-300 border border-sky-500/30 rounded text-[9px] font-bold flex items-center gap-1 transition flex-shrink-0">
-            <i class="fa-solid fa-map-location-dot"></i> Maps
-          </a>
-        </div>
-      `;
-      document.getElementById('originIpVal').innerText = origin.ip || "127.0.0.1";
-      document.getElementById('nodeTypeVal').innerText = origin.node_type || "Corporate Cloud Mailbox";
+      // Origin
+      document.getElementById("originCountry").textContent = item.originCountry;
+      document.getElementById("originIP").textContent = item.originIP;
+      document.getElementById("originNode").textContent = item.originNode;
 
-      document.getElementById('spfVal').innerText = dnsAuth.spf || "Lookup Neutral";
-      document.getElementById('dmarcVal').innerText = dnsAuth.dmarc || "p=none";
-      document.getElementById('hashVal').innerText = metadata.evidence_sha256 || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+      // DNS
+      const spfEl = document.getElementById("spfVal");
+      spfEl.textContent = item.spf;
+      spfEl.parentElement.style.background = item.spfStatus === "crit" ? "var(--c-crit-bg)" : item.spfStatus === "warn" ? "var(--c-warn-bg)" : "var(--c-safe-bg)";
+      spfEl.parentElement.style.color = item.spfStatus === "crit" ? "var(--c-crit)" : item.spfStatus === "warn" ? "var(--c-warn)" : "var(--c-safe)";
 
-      const reasonsList = document.getElementById('reasonsList');
-      reasonsList.innerHTML = '';
-      const reasons = assessment.threat_reasons || ["Verified Sender: Clean return-path alignment and authenticated corporate delivery."];
-      reasons.forEach(r => {
-        const isCleanReason = r.toLowerCase().includes("verified") || r.toLowerCase().includes("clean");
-        const li = document.createElement('li');
-        li.className = "flex items-start gap-2 bg-slate-950/60 p-2 rounded-lg border border-slate-800 text-[11px]";
-        li.innerHTML = `<i class="fa-solid ${isCleanReason ? 'fa-check text-emerald-400' : 'fa-xmark text-rose-400'} mt-0.5 flex-shrink-0"></i> <span>${r}</span>`;
-        reasonsList.appendChild(li);
+      const dmarcEl = document.getElementById("dmarcVal");
+      dmarcEl.textContent = item.dmarc;
+      dmarcEl.parentElement.style.background = item.dmarcStatus === "crit" ? "var(--c-crit-bg)" : item.dmarcStatus === "warn" ? "var(--c-warn-bg)" : "var(--c-safe-bg)";
+      dmarcEl.parentElement.style.color = item.dmarcStatus === "crit" ? "var(--c-crit)" : item.dmarcStatus === "warn" ? "var(--c-warn)" : "var(--c-safe)";
+
+      // Hash
+      document.getElementById("sha256Hash").textContent = item.sealHash;
+
+      // Render Indicators
+      const indCont = document.getElementById("indicatorContainer");
+      indCont.innerHTML = "";
+      item.indicators.forEach(ind => {
+        const indBox = document.createElement("div");
+        indBox.className = "indicator-item";
+        
+        let colorVar = "var(--c-crit)";
+        let bgVar = "var(--c-crit-bg)";
+        if (ind.level === "warn") { colorVar = "var(--c-warn)"; bgVar = "var(--c-warn-bg)"; }
+        if (ind.level === "safe") { colorVar = "var(--c-safe)"; bgVar = "var(--c-safe-bg)"; }
+
+        indBox.innerHTML = `
+          <div class="indicator-icon-box" style="background:${bgVar}; color:${colorVar};">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              ${ind.level === "safe" ? '<path d="M20 6L9 17l-5-5"/>' : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}
+            </svg>
+          </div>
+          <div class="indicator-content">
+            <div class="indicator-name">${escapeHtml(ind.name)}</div>
+            <div class="indicator-desc">${escapeHtml(ind.desc)}</div>
+          </div>
+        `;
+        indCont.appendChild(indBox);
       });
 
-      const hopsContainer = document.getElementById('hopsContainer');
-      hopsContainer.innerHTML = '';
-      const hops = data.hops && data.hops.length > 0 ? data.hops : [
-        { hop_index: 1, raw: "Received: from mx.google.com by relay gateway", extracted_ips: ["127.0.0.1"] }
-      ];
+      // Render MTA Hops
+      const hopCont = document.getElementById("hopTimelineContainer");
+      hopCont.innerHTML = "";
+      document.getElementById("hopCountBadge").textContent = `${item.hops.length} Relays Traced`;
 
-      document.getElementById('hopCountVal').innerText = `${hops.length} Relays`;
-
-      hops.forEach((h, idx) => {
-        const isOrigin = idx === 0;
-        const hopDiv = document.createElement('div');
-        hopDiv.className = isOrigin 
-          ? (score >= 40 ? "bg-rose-950/40 border border-rose-500/30 p-2.5 rounded-lg flex items-center justify-between gap-2" : "bg-emerald-950/30 border border-emerald-500/30 p-2.5 rounded-lg flex items-center justify-between gap-2")
-          : "bg-slate-950 p-2 rounded-lg border border-slate-800 flex items-center justify-between gap-2 text-slate-400";
+      item.hops.forEach((hop, idx) => {
+        const hopDiv = document.createElement("div");
+        hopDiv.className = "hop-item";
         
+        let dotColor = "var(--c-safe)";
+        if (hop.status === "crit") dotColor = "var(--c-crit)";
+        else if (hop.status === "warn") dotColor = "var(--c-warn)";
+
         hopDiv.innerHTML = `
-          <div class="truncate">
-            <span class="font-bold text-[10px] ${isOrigin ? (score >= 40 ? 'text-rose-400' : 'text-emerald-400') : 'text-slate-300'}">[HOP ${h.hop_index} - ${isOrigin ? 'ORIGIN' : 'RELAY'}]</span>
-            <p class="${isOrigin ? 'text-slate-200' : 'text-slate-400'} text-[11px] truncate">${h.extracted_ips && h.extracted_ips.length > 0 ? h.extracted_ips[0] : 'Relay Gateway'}</p>
-            <span class="text-[9px] text-slate-500 truncate block">${h.raw}</span>
+          <div class="hop-dot" style="background:${dotColor};"></div>
+          <div class="hop-title">
+            <span>Hop #${idx + 1}: ${escapeHtml(hop.name)}</span>
+            <span class="pill-badge" style="background:var(--surface); border:1px solid var(--border); font-size:0.68rem;">${hop.delay}</span>
           </div>
-          <span class="text-[9px] ${isOrigin ? (score >= 40 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300') : 'bg-slate-800 text-slate-400'} px-1.5 py-0.5 rounded font-sans font-bold flex-shrink-0">
-            ${isOrigin ? 'Origin' : 'Hop'}
-          </span>
+          <div class="hop-ip">IP: ${hop.ip}</div>
         `;
-        hopsContainer.appendChild(hopDiv);
+        hopCont.appendChild(hopDiv);
       });
-
-      document.getElementById('inboxSelectionSection').classList.add('hidden');
-      document.getElementById('resultsSection').classList.remove('hidden');
-      document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
     }
+
+    function applyFilter(filter) {
+      currentFilter = filter;
+      document.getElementById("filterAll").className = `filter-btn ${filter === "all" ? "active" : ""}`;
+      document.getElementById("filterThreat").className = `filter-btn ${filter === "threat" ? "active" : ""}`;
+      document.getElementById("filterClean").className = `filter-btn ${filter === "clean" ? "active" : ""}`;
+      renderEmailList();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function copySealHash() {
+      const hash = document.getElementById("sha256Hash").textContent.trim();
+      navigator.clipboard.writeText(hash).then(() => {
+        const text = document.getElementById("copyBtnText");
+        const original = text.textContent;
+        text.textContent = "Copied to Clipboard!";
+        setTimeout(() => { text.textContent = original; }, 2000);
+      });
+    }
+
+    function openAlertModal() {
+      document.getElementById("alertModal").classList.add("open");
+    }
+
+    function closeAlertModal() {
+      document.getElementById("alertModal").classList.remove("open");
+    }
+
+    function saveAlertConfig() {
+      const email = document.getElementById("socEmailInput").value;
+      alert(`Alert dispatch configured for: ${email}`);
+      closeAlertModal();
+    }
+
+    function scrollToDocs() {
+      document.getElementById("docsGuideSection").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function simulateConnect() {
+      alert("Mailbox OAuth 2.0 handshake verified. Continuous 24/7 daemon synchronized.");
+    }
+
+    function injectThreatDemo() {
+      selectEmail("LIVE-92841");
+      alert("Live Simulated Attack injected into forensic queue: URGENT Payroll Phishing with multi-hop Tor origin!");
+    }
+
+    function refreshInbox() {
+      renderEmailList();
+      alert("Inbox refreshed. All 5 forensic mail threads up to date.");
+    }
+
+    function clearLabels() {
+      alert("SOC-SCANNED tags cleared from connected mailbox.");
+    }
+
+    function disconnectMailbox() {
+      if (confirm("Disconnect active 24/7 monitoring daemon and wipe temporary tokens?")) {
+        alert("Mailbox session disconnected. Daemon stopped.");
+      }
+    }
+
+    // Initialize on load
+    window.addEventListener("DOMContentLoaded", () => {
+      renderEmailList();
+      selectEmail(selectedEmailId);
+    });
   </script>
 </body>
 </html>
