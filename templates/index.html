@@ -13,111 +13,7 @@
       overflow-x: hidden;
       width: 100%;
     }
-  
-/* Professional SOC/DFIR relationship graph */
-.rg-shell {
-  width: 100%;
-  min-height: 420px;
-}
-.rg-svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  min-height: 360px;
-}
-.rg-zone {
-  fill: #64748b;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.1px;
-}
-.rg-type {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .6px;
-}
-.rg-label {
-  fill: #cbd5e1;
-  font-size: 11px;
-  font-weight: 600;
-}
-.rg-edge-label {
-  fill: #64748b;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: .7px;
-  paint-order: stroke;
-  stroke: #020617;
-  stroke-width: 5px;
-  stroke-linejoin: round;
-}
-.rg-subject-label {
-  fill: #64748b;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 1px;
-}
-.rg-subject {
-  fill: #e2e8f0;
-  font-size: 11px;
-  font-weight: 600;
-}
-.rg-node {
-  transition: transform .18s ease;
-}
-.rg-node:hover {
-  filter: url(#rgGlow);
-}
-.rg-legend {
-  display: flex;
-  gap: 18px;
-  align-items: center;
-  padding: 10px 4px 2px;
-  color: #64748b;
-  font-size: 11px;
-}
-.rg-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.rg-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.rg-dot.email { background: #22d3ee; }
-.rg-dot.ip { background: #f59e0b; }
-.rg-dot.domain { background: #a78bfa; }
-.rg-dot.url { background: #38bdf8; }
-.rg-empty {
-  min-height: 390px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  color: #64748b;
-  text-align: center;
-}
-.rg-empty i {
-  font-size: 28px;
-  color: #64748b;
-}
-.rg-empty small {
-  color: #475569;
-}
-@media (max-width: 760px) {
-  .rg-svg {
-    min-width: 760px;
-  }
-  .rg-shell {
-    overflow-x: auto;
-  }
-}
-
-</style>
+  </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between selection:bg-sky-500 selection:text-white antialiased">
 
@@ -137,7 +33,7 @@
             AI EMAIL THREAT SENTINEL
             <span class="text-[10px] bg-sky-500/20 text-sky-400 border border-sky-500/30 px-1.5 py-0.5 rounded-full font-bold">SIH26106</span>
           </h1>
-          <p class="text-[11px] text-slate-400">Automated Email Forensics &amp; Infrastructure Intelligence Platform</p>
+          <p class="text-[11px] text-slate-400">Automated Relay &amp; Origin De-Anonymization Platform</p>
         </div>
       </div>
       
@@ -171,7 +67,7 @@
       <div class="max-w-2xl mx-auto space-y-2 relative z-10">
         <h2 class="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">Zero-Detonation Forensic Triage</h2>
         <p class="text-xs sm:text-sm text-slate-400 leading-relaxed">
-          Inspect RFC-822 headers, trace MTA hops, query SPF/DMARC/DNS records, correlate infrastructure, and generate SHA-256 evidence fingerprints without executing payloads.
+          Inspect RFC-822 headers, trace origin MTA hops, query live DMARC/SPF records, and generate Section 65B SHA-256 evidence seals without executing payloads.
         </p>
       </div>
 
@@ -268,16 +164,16 @@
           <span class="text-[10px] text-slate-500">Multi-Factor Heuristic Engine</span>
         </div>
 
-        <!-- Observed Origin / Infrastructure with Direct Maps Tracker -->
+        <!-- Origin Location with Direct Maps Tracker -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
-          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Observed Origin / Infrastructure</span>
+          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Origin Location</span>
           <div class="my-1.5">
             <div id="originLocationVal" class="text-xs sm:text-sm font-bold text-white flex items-center justify-between gap-1 w-full">
               <span class="truncate"><i class="fa-solid fa-location-dot text-sky-400"></i> Resolving...</span>
             </div>
             <div id="originIpVal" class="text-[11px] font-mono text-slate-400 mt-0.5 truncate">0.0.0.0</div>
           </div>
-          <span id="nodeTypeVal" class="text-[10px] text-amber-400 font-semibold truncate">Infrastructure Context</span>
+          <span id="nodeTypeVal" class="text-[10px] text-amber-400 font-semibold truncate">Data Center / VPN Node</span>
         </div>
 
         <!-- DNS Protocol Check -->
@@ -294,18 +190,18 @@
           <span class="text-[10px] text-slate-500">Live DNS Records</span>
         </div>
 
-        <!-- SHA-256 Evidence Fingerprint -->
+        <!-- Section 65B Digital Seal -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg">
-          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">SHA-256 Evidence Fingerprint</span>
+          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sec 65B Digital Seal</span>
           <div class="my-1.5">
             <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-              <i class="fa-solid fa-certificate"></i> Integrity Fingerprint
+              <i class="fa-solid fa-certificate"></i> Admissible (BSA 2023)
             </span>
             <div id="hashVal" class="text-[9px] font-mono text-slate-400 break-all mt-1 bg-slate-950 p-1.5 rounded border border-slate-800 select-all line-clamp-2">
               e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
             </div>
           </div>
-          <span class="text-[10px] text-slate-500">SHA-256 Integrity Fingerprint</span>
+          <span class="text-[10px] text-slate-500">Immutable SHA-256 Hash</span>
         </div>
       </div>
 
@@ -331,126 +227,7 @@
     </div>
 
     <!-- SOC Help Desk & FAQ -->
-    
-      <!-- Infrastructure & Campaign Correlation -->
-      <section id="correlationSection" class="space-y-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3 mb-4">
-            <div>
-              <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                <i class="fa-solid fa-diagram-project text-indigo-400"></i>
-                Infrastructure &amp; Campaign Correlation
-              </h3>
-              <p class="text-[11px] text-slate-400 mt-0.5">
-                Relates observed email, IP, domain and URL evidence across analysed cases.
-              </p>
-            </div>
-            <span class="text-[10px] bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded-full font-bold">
-              CORRELATION INTELLIGENCE
-            </span>
-          </div>
-
-          <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Campaign</div>
-              <div id="campaignIdVal" class="text-sm font-black text-indigo-300 mt-1 truncate">No linked campaign</div>
-            </div>
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Related Emails</div>
-              <div id="relatedEmailCountVal" class="text-lg font-black text-sky-300 mt-1">0</div>
-            </div>
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Infra Confidence</div>
-              <div id="infraConfidenceVal" class="text-sm font-black text-amber-300 mt-1">LOW</div>
-            </div>
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">IOC Matches</div>
-              <div id="iocCountVal" class="text-lg font-black text-rose-300 mt-1">0</div>
-            </div>
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">DKIM</div>
-              <div id="dkimVal" class="text-xs font-black text-slate-200 mt-1">Not observed</div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div class="lg:col-span-2 bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="flex items-center justify-between mb-2">
-                <div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                  <i class="fa-solid fa-share-nodes text-indigo-400 mr-1"></i> Evidence Relationship Graph
-                </div>
-                <span class="text-[9px] text-slate-500">EMAIL ↔ IP ↔ DOMAIN ↔ URL</span>
-              </div>
-              <div id="relationshipGraph" class="w-full min-h-[260px] overflow-hidden rounded-lg bg-slate-950 border border-slate-900"></div>
-              <div class="flex flex-wrap gap-3 mt-2 text-[9px] text-slate-500">
-                <span>● Email</span><span>● IP</span><span>● Domain</span><span>● URL</span>
-              </div>
-            </div>
-
-            <div class="space-y-4">
-              <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-                <div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  <i class="fa-solid fa-bullseye text-rose-400 mr-1"></i> IOC Correlation
-                </div>
-                <div id="iocMatchesList" class="space-y-1.5 text-[10px] text-slate-400">
-                  <span>No configured IOC matches.</span>
-                </div>
-              </div>
-
-              <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-                <div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  <i class="fa-solid fa-link text-sky-400 mr-1"></i> Correlation Findings
-                </div>
-                <div id="correlationReasonsList" class="space-y-1.5 text-[10px] text-slate-400">
-                  <span>No cross-case findings.</span>
-                </div>
-              </div>
-
-              <div class="bg-amber-950/20 border border-amber-500/20 rounded-xl p-3">
-                <div class="text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">Attribution Boundary</div>
-                <p id="attributionStatusVal" class="text-[10px] text-amber-200/80 leading-relaxed">
-                  Infrastructure correlation supports investigation; it does not establish the identity of the sender or threat actor.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- DNS / Domain Intelligence -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-            <div>
-              <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                <i class="fa-solid fa-globe text-cyan-400"></i> Domain &amp; DNS Intelligence
-              </h3>
-              <p class="text-[11px] text-slate-400 mt-0.5">
-                Observed DNS context for the sender domain; records are supporting evidence, not proof of maliciousness.
-              </p>
-            </div>
-            <span id="intelDomainVal" class="text-[10px] font-mono text-cyan-300 truncate max-w-[45%]">N/A</span>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="text-[10px] text-slate-500 uppercase font-bold mb-1">A Records</div>
-              <div id="dnsAVal" class="text-[10px] font-mono text-slate-300 break-all">—</div>
-            </div>
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="text-[10px] text-slate-500 uppercase font-bold mb-1">MX Records</div>
-              <div id="dnsMXVal" class="text-[10px] font-mono text-slate-300 break-all">—</div>
-            </div>
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="text-[10px] text-slate-500 uppercase font-bold mb-1">NS Records</div>
-              <div id="dnsNSVal" class="text-[10px] font-mono text-slate-300 break-all">—</div>
-            </div>
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-              <div class="text-[10px] text-slate-500 uppercase font-bold mb-1">TXT Records</div>
-              <div id="dnsTXTVal" class="text-[10px] font-mono text-slate-300 break-all">—</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-<section id="helpDeskSection" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4">
+    <section id="helpDeskSection" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4">
       <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
         <div>
           <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
@@ -467,13 +244,13 @@
         <!-- Card 1: 24/7 Monitoring -->
         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
           <h4 class="text-xs sm:text-sm font-bold text-emerald-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-shield-check"></i> Automated Background Monitoring
+            <i class="fa-solid fa-shield-check"></i> Automated 24/7 Server Daemon
           </h4>
           <ol class="text-[11px] text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
             <li>Click <strong>1-Click Connect Any Mailbox</strong> to link your Gmail account.</li>
             <li>Your inbox is audited 24/7 in the cloud &mdash; <strong>you can safely close this browser window</strong>.</li>
-            <li>Incoming unread messages are checked automatically by the configured background monitor.</li>
-            <li>High-risk incidents (&ge; 40%) generate SHA-256 evidence records and dispatch email alerts.</li>
+            <li>All incoming unread threats are audited automatically every 45 seconds without client software.</li>
+            <li>High-risk incidents (&ge; 40%) generate Section 65B forensic hash logs and dispatch email alerts.</li>
           </ol>
         </div>
 
@@ -518,7 +295,7 @@
             <span class="text-slate-500 text-[11px]">or specify SOC desk email:</span>
           </div>
           <input type="email" id="customSocEmail" value="" placeholder="soc-desk@yourorganization.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
-          <span class="text-[11px] text-slate-500 block">Suspicious threat incidents with SHA-256 evidence fingerprints will be dispatched to this address.</span>
+          <span class="text-[11px] text-slate-500 block">Suspicious threat incidents with Section 65B forensic hash seals will be dispatched to this address.</span>
         </div>
 
         <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
@@ -792,38 +569,7 @@
     }
 
     function triggerLiveDemo() {
-      const btn = document.getElementById('demoBtn');
-
-      if (btn) {
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
-        btn.disabled = true;
-      }
-
-      fetch('/scan_demo', {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-        cache: 'no-store'
-      })
-        .then(res => {
-          if (!res.ok) {
-            throw new Error(`Demo request failed: ${res.status}`);
-          }
-          return res.json();
-        })
-        .then(data => {
-          const caseId = data.case_id || 'LIVE-DEMO';
-          renderDashboard(data, caseId);
-        })
-        .catch(err => {
-          console.error('Live Threat Demo Error:', err);
-          alert('Live Threat Demo failed. Please check the backend deployment/logs.');
-        })
-        .finally(() => {
-          if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-play text-xs"></i> 1-Click Live Threat Demo';
-            btn.disabled = false;
-          }
-        });
+      fetchCaseData('c66930bf');
     }
 
     function fetchCaseData(caseId) {
@@ -857,203 +603,11 @@
         });
     }
 
-
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-
-    function setIntelValue(id, values) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const arr = Array.isArray(values) ? values : [];
-      el.innerHTML = arr.length
-        ? arr.slice(0, 8).map(v => `<div class="mb-1">${escapeHtml(v)}</div>`).join("")
-        : '<span class="text-slate-600">No record observed</span>';
-    }
-
-    function renderRelationshipGraph(graph) {
-      const container = document.getElementById('relationshipGraph');
-      if (!container) return;
-
-      const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-      const edges = Array.isArray(graph?.edges) ? graph.edges : [];
-
-      const width = 920;
-      const height = 420;
-      const cx = width / 2;
-      const cy = 190;
-
-      const emailNodes = nodes.filter(n => String(n.type || '').toLowerCase() === 'email');
-      const domainNodes = nodes.filter(n => String(n.type || '').toLowerCase() === 'domain');
-      const ipNodes = nodes.filter(n => String(n.type || '').toLowerCase() === 'ip');
-      const urlNodes = nodes.filter(n => String(n.type || '').toLowerCase() === 'url');
-
-      const esc = escapeHtml;
-
-      // Keep the primary email in the center and distribute infrastructure around it.
-      const primaryEmail = emailNodes[0] || { id: 'email', type: 'email', label: 'EMAIL' };
-      const positioned = new Map();
-
-      positioned.set(primaryEmail.id, { x: cx, y: cy });
-
-      const spread = (items, y, minX, maxX) => {
-        if (!items.length) return;
-        const gap = items.length === 1 ? 0 : (maxX - minX) / (items.length - 1);
-        items.forEach((node, i) => {
-          positioned.set(node.id, {
-            x: items.length === 1 ? cx : minX + gap * i,
-            y
-          });
-        });
-      };
-
-      spread(domainNodes, 78, 145, 775);
-      spread(ipNodes, 322, 245, 675);
-      spread(urlNodes, 390, 180, 740);
-
-      const fallbackPositions = [
-        {x: 120, y: 190}, {x: 800, y: 190}, {x: 120, y: 330}, {x: 800, y: 330}
-      ];
-      let fallbackIndex = 0;
-      nodes.forEach(node => {
-        if (!positioned.has(node.id)) {
-          positioned.set(node.id, fallbackPositions[fallbackIndex++ % fallbackPositions.length]);
-        }
-      });
-
-      const pos = id => positioned.get(id) || { x: cx, y: cy };
-      const nodeById = new Map(nodes.map(n => [n.id, n]));
-
-      const edgePath = (a, b) => {
-        const p1 = pos(a), p2 = pos(b);
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-
-        // Slight curvature prevents labels/lines from stacking directly through the centre.
-        const bend = Math.max(24, Math.min(70, Math.abs(dx) * 0.10));
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2;
-        const sign = dx >= 0 ? 1 : -1;
-
-        return `M ${p1.x} ${p1.y} Q ${midX} ${midY - sign * bend} ${p2.x} ${p2.y}`;
-      };
-
-      const labelOffset = (a, b, index) => {
-        const p1 = pos(a), p2 = pos(b);
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const len = Math.max(1, Math.hypot(dx, dy));
-        const nx = -dy / len;
-        const ny = dx / len;
-        const amount = index % 2 === 0 ? 15 : -15;
-        return {
-          x: (p1.x + p2.x) / 2 + nx * amount,
-          y: (p1.y + p2.y) / 2 + ny * amount
-        };
-      };
-
-      const nodeStyle = type => {
-        const t = String(type || '').toLowerCase();
-        if (t === 'ip') return { stroke: '#f59e0b', fill: '#120d02', badge: '#f59e0b' };
-        if (t === 'domain') return { stroke: '#a78bfa', fill: '#0d0820', badge: '#a78bfa' };
-        if (t === 'url') return { stroke: '#38bdf8', fill: '#03121a', badge: '#38bdf8' };
-        return { stroke: '#22d3ee', fill: '#03151a', badge: '#22d3ee' };
-      };
-
-      const nodeMarkup = nodes.map(node => {
-        const p = pos(node.id);
-        const s = nodeStyle(node.type);
-        const type = String(node.type || 'email').toUpperCase();
-        const rawLabel = String(node.label || node.id || type);
-        const label = rawLabel.length > 29 ? rawLabel.slice(0, 27) + '…' : rawLabel;
-        const isEmail = type === 'EMAIL';
-
-        return `
-          <g class="rg-node" transform="translate(${p.x},${p.y})">
-            <circle r="${isEmail ? 31 : 25}" fill="${s.fill}" stroke="${s.stroke}" stroke-width="2"/>
-            <circle r="${isEmail ? 36 : 30}" fill="none" stroke="${s.stroke}" stroke-opacity=".12" stroke-width="1"/>
-            <text y="-2" text-anchor="middle" class="rg-type" fill="${s.badge}">${esc(type)}</text>
-            ${!isEmail ? `<text y="45" text-anchor="middle" class="rg-label">${esc(label)}</text>` : ''}
-          </g>`;
-      }).join('');
-
-      const edgeMarkup = edges.map((edge, i) => {
-        const source = edge.source ?? edge.from;
-        const target = edge.target ?? edge.to;
-        if (!source || !target || !positioned.has(source) || !positioned.has(target)) return '';
-
-        const sourceNode = nodeById.get(source);
-        const targetNode = nodeById.get(target);
-        const relation = String(edge.label || edge.relation || edge.type || 'RELATED').replace(/_/g, ' ').toUpperCase();
-        const path = edgePath(source, target);
-        const lp = labelOffset(source, target, i);
-
-        return `
-          <g class="rg-edge">
-            <path d="${path}" fill="none" stroke="#334155" stroke-width="1.8" marker-end="url(#rgArrow)"/>
-            <text x="${lp.x}" y="${lp.y}" text-anchor="middle" class="rg-edge-label">${esc(relation)}</text>
-          </g>`;
-      }).join('');
-
-      const subject = primaryEmail.label || primaryEmail.subject || 'Email alert';
-      const safeSubject = String(subject).length > 72 ? String(subject).slice(0, 69) + '…' : String(subject);
-
-      container.innerHTML = `
-        <div class="rg-shell">
-          <svg class="rg-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evidence relationship graph">
-            <defs>
-              <marker id="rgArrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-                <path d="M0,0 L7,3.5 L0,7 Z" fill="#475569"></path>
-              </marker>
-              <filter id="rgGlow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="3" result="blur"/>
-                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-            </defs>
-
-            <rect x="1" y="1" width="${width-2}" height="${height-2}" rx="16" fill="#020617" stroke="#172033"/>
-
-            <text x="24" y="30" class="rg-zone">SENDER / DOMAIN INTELLIGENCE</text>
-            <text x="24" y="${height-20}" class="rg-zone">NETWORK / RELAY INFRASTRUCTURE</text>
-
-            ${edgeMarkup}
-            ${nodeMarkup}
-
-            <g transform="translate(${cx}, ${cy + 62})">
-              <rect x="-205" y="0" width="410" height="42" rx="10" fill="#07101d" stroke="#1e293b"/>
-              <text x="0" y="17" text-anchor="middle" class="rg-subject-label">EMAIL SUBJECT</text>
-              <text x="0" y="33" text-anchor="middle" class="rg-subject">${esc(safeSubject)}</text>
-            </g>
-          </svg>
-          <div class="rg-legend">
-            <span><i class="rg-dot email"></i>Email</span>
-            <span><i class="rg-dot ip"></i>IP</span>
-            <span><i class="rg-dot domain"></i>Domain</span>
-            <span><i class="rg-dot url"></i>URL</span>
-          </div>
-        </div>`;
-
-      // If the graph has no meaningful nodes, keep the panel useful instead of showing a broken SVG.
-      if (!nodes.length) {
-        container.innerHTML = `
-          <div class="rg-empty">
-            <i class="fa-solid fa-diagram-project"></i>
-            <div>No correlated evidence available for this case.</div>
-            <small>Run the forensic analysis to populate the relationship graph.</small>
-          </div>`;
-      }
-    }
     function renderDashboard(data, caseId) {
       const assessment = data.threat_assessment || {};
       const metadata = data.metadata || {};
       const origin = data.origin_investigation || {};
       const dnsAuth = data.dns_authentication || {};
-      const domainIntel = data.domain_intelligence || {};
-      const correlation = data.correlation || {};
-      const graph = data.graph || { nodes: [], edges: [] };
 
       const caseBadge = document.getElementById('activeCaseBadge');
       if (caseBadge) caseBadge.innerText = `#${caseId || 'LIVE'}`;
@@ -1136,58 +690,6 @@
         `;
         hopsContainer.appendChild(hopDiv);
       });
-
-
-      const campaignEl = document.getElementById("campaignIdVal");
-      if (campaignEl) campaignEl.innerText = correlation.campaign_id || "No linked campaign";
-
-      const relatedEl = document.getElementById("relatedEmailCountVal");
-      if (relatedEl) relatedEl.innerText = correlation.related_email_count ?? 0;
-
-      const confidenceEl = document.getElementById("infraConfidenceVal");
-      if (confidenceEl) {
-        const c = correlation.infrastructure_confidence || "LOW";
-        confidenceEl.innerText = c;
-        confidenceEl.className = "text-sm font-black mt-1 " +
-          (c === "HIGH" ? "text-emerald-300" : c === "MEDIUM" ? "text-amber-300" : "text-slate-300");
-      }
-
-      const ioc = correlation.ioc_matches || {ips: [], domains: [], urls: []};
-      const iocCount = (ioc.ips || []).length + (ioc.domains || []).length + (ioc.urls || []).length;
-      const iocCountEl = document.getElementById("iocCountVal");
-      if (iocCountEl) iocCountEl.innerText = iocCount;
-
-      const dkimEl = document.getElementById("dkimVal");
-      if (dkimEl) dkimEl.innerText = dnsAuth.dkim || "Not observed";
-
-      const attrEl = document.getElementById("attributionStatusVal");
-      if (attrEl) attrEl.innerText = correlation.attribution_status ||
-        "Infrastructure correlation supports investigation; it does not establish the identity of the sender or threat actor.";
-
-      const iocList = document.getElementById("iocMatchesList");
-      if (iocList) {
-        const rows = [];
-        (ioc.ips || []).forEach(x => rows.push(`<div><span class="text-rose-300">IP</span> ${escapeHtml(x)}</div>`));
-        (ioc.domains || []).forEach(x => rows.push(`<div><span class="text-amber-300">DOMAIN</span> ${escapeHtml(x)}</div>`));
-        (ioc.urls || []).forEach(x => rows.push(`<div class="break-all"><span class="text-sky-300">URL</span> ${escapeHtml(x)}</div>`));
-        iocList.innerHTML = rows.length ? rows.join("") : "<span>No configured IOC matches.</span>";
-      }
-
-      const corrList = document.getElementById("correlationReasonsList");
-      if (corrList) {
-        const rs = correlation.correlation_reasons || [];
-        corrList.innerHTML = rs.length
-          ? rs.map(x => `<div class="flex items-start gap-1.5"><i class="fa-solid fa-link text-indigo-400 mt-0.5"></i><span>${escapeHtml(x)}</span></div>`).join("")
-          : "<span>No cross-case findings.</span>";
-      }
-
-      const domainEl = document.getElementById("intelDomainVal");
-      if (domainEl) domainEl.innerText = domainIntel.domain || "N/A";
-      setIntelValue("dnsAVal", domainIntel.a);
-      setIntelValue("dnsMXVal", domainIntel.mx);
-      setIntelValue("dnsNSVal", domainIntel.ns);
-      setIntelValue("dnsTXTVal", domainIntel.txt);
-      renderRelationshipGraph(graph);
 
       document.getElementById('inboxSelectionSection').classList.add('hidden');
       document.getElementById('resultsSection').classList.remove('hidden');
