@@ -23,11 +23,9 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "").strip() or os.urandom(32
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com").strip()
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "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").strip()
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
-if not GOOGLE_CLIENT_SECRET:
-    print("[CONFIG WARNING] GOOGLE_CLIENT_SECRET is not set. Add it to Render Environment Variables.")
 
 CASES_FILE = "cases_cache.json"
 ACCOUNTS_FILE = "accounts_cache.json"
