@@ -23,9 +23,11 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "").strip() or os.urandom(32
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com").strip()
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "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").strip()
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
+if not GOOGLE_CLIENT_SECRET:
+    print("[CONFIG WARNING] GOOGLE_CLIENT_SECRET is not set. Add it to Render Environment Variables.")
 
 CASES_FILE = "cases_cache.json"
 ACCOUNTS_FILE = "accounts_cache.json"
@@ -443,6 +445,7 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     # Fast duplicate check before any network call.
     with ALERT_FILE_LOCK:
         if unique_key in SENT_ALERTS or unique_msg_id in SENT_ALERTS:
+            print(f"[ALERT] Duplicate suppressed for source message {unique_msg_id}")
             return False
 
     try:
@@ -646,6 +649,12 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 record_alert_dispatched(new_id)
                 record_alert_dispatched(f"ALERT_SENT_{new_id}")
                 apply_soc_label_to_message(headers, new_id, mark_as_read=True)
+
+            # Also persist the source message as dispatched ONLY after Gmail
+            # accepted the alert. This prevents a successful alert from being
+            # sent again on a later monitor cycle.
+            record_alert_dispatched(unique_msg_id)
+            record_alert_dispatched(unique_key)
 
             print(f"[SUCCESS] Dispatched SOC alert for Case #{case_id} to {recipient_email}")
             return True
@@ -1041,21 +1050,53 @@ def _background_threat_monitor():
                     snippet = str(meta_data.get("snippet", "")).lower()
                     clean_subj = sanitize_to_ascii(subj).lower()
 
+                    # ---------------------------------------------------------
+                    # ABSOLUTE SOC-ALERT LOOP BREAKER
+                    # ---------------------------------------------------------
+                    # Our own SOC alert is a newly generated Gmail message, so it
+                    # must NEVER enter forensic scoring. Otherwise its headers can
+                    # look suspicious and it may be classified as spoofed/BEC,
+                    # causing an alert -> alert -> alert loop.
+                    #
+                    # Check explicit Nexora markers FIRST, before fetching/parsing
+                    # the raw message or calculating a threat score.
+                    source_sender = sndr.strip().lower()
+                    source_from_matches_mailbox = (
+                        bool(email_addr)
+                        and email_addr.lower() in source_sender
+                    )
+                    source_is_self_sent = source_sender.startswith(
+                        f"{email_addr.lower()} "
+                    ) or f"<{email_addr.lower()}>" in source_sender
+
                     self_markers = (
                         is_nexora_header == "alert"
                         or bool(alert_id)
                         or "[soc alert]" in clean_subj
                         or "soc incident alert" in clean_subj
+                        or "threat detected" in clean_subj
+                        or "nexora sentinel" in clean_subj
                         or "ai threat sentinel" in clean_subj
                         or "nexora sentinel" in snippet
                         or "incident dispatch" in snippet
+                        or "open forensic case dashboard" in snippet
                         or "nexora.sentinel" in msg_uuid.lower()
                         or msg_uuid in SENT_ALERTS
                         or alert_id in SENT_ALERTS
+                        or source_is_self_sent
+                        or source_from_matches_mailbox
                     )
+
                     if self_markers:
-                        apply_soc_label_to_message(headers, msg_id, mark_as_read=True)
+                        print(
+                            f"[LOOP-BREAKER] Ignoring Nexora/self-generated message "
+                            f"{msg_id} | subject={subj[:100]!r}"
+                        )
+                        apply_soc_label_to_message(
+                            headers, msg_id, mark_as_read=True
+                        )
                         record_alert_dispatched(msg_id)
+                        record_alert_dispatched(f"ALERT_SENT_{msg_id}")
                         if msg_uuid:
                             record_alert_dispatched(msg_uuid)
                         if alert_id:
@@ -1072,13 +1113,37 @@ def _background_threat_monitor():
                         continue
 
                     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ascii"))
+
+                    # Second loop-protection layer: never score an email that was
+                    # generated by this Sentinel instance.
+                    raw_lower = raw_bytes.decode("utf-8", errors="ignore").lower()
+                    raw_self_markers = (
+                        "x-nexora-sentinel: alert" in raw_lower
+                        or "x-nexora-alert-id:" in raw_lower
+                        or "nexora.sentinel" in raw_lower
+                        or "open forensic case dashboard" in raw_lower
+                    )
+                    if raw_self_markers:
+                        print(
+                            f"[LOOP-BREAKER] Raw-message marker detected; "
+                            f"skipping forensic analysis for {msg_id}"
+                        )
+                        apply_soc_label_to_message(
+                            headers, msg_id, mark_as_read=True
+                        )
+                        record_alert_dispatched(msg_id)
+                        record_alert_dispatched(f"ALERT_SENT_{msg_id}")
+                        continue
+
                     analysis = analyze_email_forensics(raw_bytes)
                     threat_score = int(analysis["threat_assessment"]["threat_score"])
+                    print(f"[SCAN] {msg_id}: threat_score={threat_score}%")
 
+                    # Mark the source email as scanned, but DO NOT add its ID to
+                    # SENT_ALERTS yet. dispatch_soc_alert_email() uses that set as
+                    # its duplicate-send guard. Adding msg_id here would cause the
+                    # dispatcher to immediately return False every time.
                     apply_soc_label_to_message(headers, msg_id, mark_as_read=False)
-                    record_alert_dispatched(msg_id)
-                    if msg_uuid:
-                        record_alert_dispatched(msg_uuid)
 
                     target_email = email_addr
                     if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
@@ -1087,7 +1152,24 @@ def _background_threat_monitor():
                     if threat_score >= 40:
                         case_id = str(uuid.uuid4())[:8]
                         save_case_record(case_id, analysis)
-                        dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
+
+                        sent = dispatch_soc_alert_email(
+                            headers,
+                            target_email,
+                            case_id,
+                            analysis,
+                            msg_id
+                        )
+
+                        if sent:
+                            print(f"[ALERT] SOC alert successfully sent for source message {msg_id}")
+                        else:
+                            print(f"[ALERT] SOC alert was not sent for source message {msg_id}")
+                    else:
+                        # Only record non-alert messages as processed here.
+                        record_alert_dispatched(msg_id)
+                        if msg_uuid:
+                            record_alert_dispatched(msg_uuid)
 
                 finally:
                     with ALERT_FILE_LOCK:
