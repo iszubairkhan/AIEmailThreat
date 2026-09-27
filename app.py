@@ -21,10 +21,12 @@ from flask import Flask, render_template, request, jsonify, redirect, session
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "").strip() or os.urandom(32).hex()
 
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_ID = os.environ.get(
+    "GOOGLE_CLIENT_ID",
+    "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com"
+).strip()
+
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
-REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
 CASES_FILE = "cases_cache.json"
 ACCOUNTS_FILE = "accounts_cache.json"
