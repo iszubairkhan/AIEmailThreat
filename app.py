@@ -21,12 +21,13 @@ from flask import Flask, render_template, request, jsonify, redirect, session
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "").strip() or os.urandom(32).hex()
 
-GOOGLE_CLIENT_ID = os.environ.get(
-    "GOOGLE_CLIENT_ID",
-    "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com"
-).strip()
-
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com").strip()
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
+
+if not GOOGLE_CLIENT_SECRET:
+    print("[CONFIG WARNING] GOOGLE_CLIENT_SECRET is not set. Add it to Render Environment Variables.")
 
 CASES_FILE = "cases_cache.json"
 ACCOUNTS_FILE = "accounts_cache.json"
@@ -464,7 +465,6 @@ def normalize_email_text(text_value):
     value = re.sub(r"(?s)<[^>]+>", " ", value)
     value = html.unescape(value)
     return re.sub(r"\\s+", " ", value).strip()
-
 def get_ip_intelligence(ip_address: str):
     if not ip_address or ip_address in ["127.0.0.1", "localhost"]:
         return {
