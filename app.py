@@ -21,6 +21,7 @@ from flask import Flask, render_template, request, jsonify, redirect, session
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "").strip() or os.urandom(32).hex()
 
+
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com").strip()
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "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").strip()
@@ -30,8 +31,6 @@ CASES_FILE = "cases_cache.json"
 ACCOUNTS_FILE = "accounts_cache.json"
 SETTINGS_FILE = "settings_cache.json"
 ALERTS_FILE = "sent_alerts_cache.json"
-GRAPH_FILE = "correlation_graph_cache.json"
-IOC_FILE = "ioc_watchlist.json"
 ALERT_TEMPLATE_VERSION = "V4-ASCII"
 
 CASES_DB = {}
@@ -41,11 +40,6 @@ SENT_ALERTS = set()
 MONITOR_LOCK = threading.Lock()
 ALERT_FILE_LOCK = threading.Lock()
 PROCESSING_MESSAGES = set()
-
-# Correlation/IOC state. These are lightweight prototype stores; they can be
-# replaced by Neo4j/Redis/SIEM storage in a production deployment.
-CORRELATION_LOCK = threading.Lock()
-CORRELATION_GRAPH = {"nodes": [], "edges": []}
 
 
 # -------------------------------------------------------------
@@ -87,239 +81,6 @@ def save_monitored_account(email_addr, refresh_token):
             json.dump(MONITORED_ACCOUNTS, f)
     except Exception as e:
         print(f"Error saving account {email_addr}: {e}")
-
-def load_correlation_graph():
-    global CORRELATION_GRAPH
-    if os.path.exists(GRAPH_FILE):
-        try:
-            with open(GRAPH_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict) and isinstance(data.get("nodes"), list) and isinstance(data.get("edges"), list):
-                    CORRELATION_GRAPH = data
-        except Exception:
-            pass
-    return CORRELATION_GRAPH
-
-def save_correlation_graph():
-    try:
-        with CORRELATION_LOCK:
-            with open(GRAPH_FILE, "w", encoding="utf-8") as f:
-                json.dump(CORRELATION_GRAPH, f, indent=2)
-    except Exception as e:
-        print(f"Error saving correlation graph: {e}")
-
-def _upsert_graph_node(node_id, node_type, label=None, **extra):
-    if not node_id:
-        return
-    node_id = str(node_id)
-    with CORRELATION_LOCK:
-        for node in CORRELATION_GRAPH["nodes"]:
-            if node.get("id") == node_id:
-                if label:
-                    node["label"] = label
-                node.update({k: v for k, v in extra.items() if v is not None})
-                return
-        node = {"id": node_id, "type": node_type, "label": label or node_id}
-        node.update({k: v for k, v in extra.items() if v is not None})
-        CORRELATION_GRAPH["nodes"].append(node)
-
-def _upsert_graph_edge(source, target, relation):
-    if not source or not target:
-        return
-    edge_key = (str(source), str(target), str(relation))
-    with CORRELATION_LOCK:
-        for edge in CORRELATION_GRAPH["edges"]:
-            if (edge.get("source"), edge.get("target"), edge.get("relation")) == edge_key:
-                edge["weight"] = int(edge.get("weight", 1)) + 1
-                return
-        CORRELATION_GRAPH["edges"].append({
-            "source": str(source),
-            "target": str(target),
-            "relation": str(relation),
-            "weight": 1
-        })
-
-def load_ioc_watchlist():
-    """Load optional local IOC data. No external feed is assumed by default."""
-    default = {"ips": [], "domains": [], "urls": []}
-    try:
-        env_data = os.environ.get("NEXORA_IOC_JSON", "").strip()
-        if env_data:
-            data = json.loads(env_data)
-            if isinstance(data, dict):
-                return {
-                    "ips": [str(x).strip().lower() for x in data.get("ips", [])],
-                    "domains": [str(x).strip().lower() for x in data.get("domains", [])],
-                    "urls": [str(x).strip().lower() for x in data.get("urls", [])]
-                }
-    except Exception as e:
-        print(f"IOC environment data ignored: {e}")
-    if os.path.exists(IOC_FILE):
-        try:
-            with open(IOC_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    return {
-                        "ips": [str(x).strip().lower() for x in data.get("ips", [])],
-                        "domains": [str(x).strip().lower() for x in data.get("domains", [])],
-                        "urls": [str(x).strip().lower() for x in data.get("urls", [])]
-                    }
-        except Exception:
-            pass
-    return default
-
-def domain_from_url(url_value):
-    match = re.search(r"(?:https?://|www\.)([^/?:#\s]+)", str(url_value), re.IGNORECASE)
-    return match.group(1).lower().strip('.') if match else ""
-
-def run_domain_intelligence(domain, resolver):
-    result = {"domain": domain or "", "a": [], "mx": [], "ns": [], "txt": []}
-    if not domain:
-        return result
-    for record_type, key in (("A", "a"), ("MX", "mx"), ("NS", "ns"), ("TXT", "txt")):
-        try:
-            answers = resolver.resolve(domain, record_type)
-            values = []
-            for answer in answers:
-                value = answer.to_text().strip('"')
-                values.append(value[:250])
-            result[key] = values[:10]
-        except Exception:
-            result[key] = []
-    return result
-
-def correlate_analysis(analysis):
-    """Add graph/campaign/IOC intelligence to an already completed analysis."""
-    global CORRELATION_GRAPH
-    load_correlation_graph()
-    iocs = load_ioc_watchlist()
-
-    meta = analysis.get("metadata", {})
-    sender = str(meta.get("from", ""))
-    sender_match = re.search(r"@([\w.-]+)", sender)
-    sender_domain = sender_match.group(1).lower() if sender_match else ""
-    return_path = str(meta.get("return_path", ""))
-    rp_match = re.search(r"@([\w.-]+)", return_path)
-    return_domain = rp_match.group(1).lower() if rp_match else ""
-    message_node = "email:" + hashlib.sha256(str(meta.get("message_id", meta.get("evidence_sha256", ""))).encode()).hexdigest()[:16]
-    case_id = analysis.get("case_id", "")
-
-    node_specs = [(message_node, "EMAIL", str(meta.get("subject", "(No Subject)"))[:80])]
-    if sender_domain:
-        node_specs.append(("domain:" + sender_domain, "DOMAIN", sender_domain))
-    if return_domain and return_domain != sender_domain:
-        node_specs.append(("domain:" + return_domain, "DOMAIN", return_domain))
-    for ip in analysis.get("origin_investigation", {}).get("ip", ""),:
-        if ip and ip not in ("127.0.0.1", "Unknown"):
-            node_specs.append(("ip:" + str(ip), "IP", str(ip)))
-    for hop in analysis.get("hops", []):
-        for ip in hop.get("extracted_ips", [])[:4]:
-            node_specs.append(("ip:" + str(ip), "IP", str(ip)))
-    url_domains = []
-    for url in analysis.get("urls", []):
-        d = domain_from_url(url)
-        if d:
-            url_domains.append(d)
-            node_specs.append(("domain:" + d, "DOMAIN", d))
-
-    for nid, ntype, label in node_specs:
-        _upsert_graph_node(nid, ntype, label)
-    if sender_domain:
-        _upsert_graph_edge(message_node, "domain:" + sender_domain, "SENDER_DOMAIN")
-    if return_domain:
-        _upsert_graph_edge(message_node, "domain:" + return_domain, "RETURN_PATH_DOMAIN")
-    for nid, ntype, label in node_specs:
-        if ntype == "IP":
-            _upsert_graph_edge(message_node, nid, "RELAYED_THROUGH")
-    for d in url_domains:
-        _upsert_graph_edge(message_node, "domain:" + d, "LINKED_DOMAIN")
-
-    # Find previously observed relationships for this email's entities.
-    entity_ids = {nid for nid, _, _ in node_specs if not nid.startswith("email:")}
-    related_cases = set()
-    with CORRELATION_LOCK:
-        graph_edges = list(CORRELATION_GRAPH["edges"])
-    for edge in graph_edges:
-        if edge.get("source") in entity_ids or edge.get("target") in entity_ids:
-            other = edge.get("source") if edge.get("target") in entity_ids else edge.get("target")
-            if other and str(other).startswith("email:") and other != message_node:
-                related_cases.add(other)
-
-    related_email_count = len(related_cases)
-    campaign_id = None
-    if related_email_count:
-        campaign_id = "CAMP-" + hashlib.sha256("|".join(sorted(related_cases | {message_node})).encode()).hexdigest()[:8].upper()
-
-    matched_iocs = {"ips": [], "domains": [], "urls": []}
-    observed_ips = set()
-    for hop in analysis.get("hops", []):
-        observed_ips.update(str(x).lower() for x in hop.get("extracted_ips", []))
-    origin_ip = str(analysis.get("origin_investigation", {}).get("ip", "")).lower()
-    if origin_ip:
-        observed_ips.add(origin_ip)
-    for ip in observed_ips:
-        if ip in set(iocs.get("ips", [])):
-            matched_iocs["ips"].append(ip)
-    observed_domains = set([sender_domain, return_domain] + url_domains) - {""}
-    for d in observed_domains:
-        if d in set(iocs.get("domains", [])):
-            matched_iocs["domains"].append(d)
-    for url in analysis.get("urls", []):
-        if str(url).lower() in set(iocs.get("urls", [])):
-            matched_iocs["urls"].append(url)
-
-    correlation_reasons = []
-    if related_email_count:
-        correlation_reasons.append(f"Shared infrastructure indicators connect this email to {related_email_count} previously analysed email(s).")
-    if matched_iocs["ips"] or matched_iocs["domains"] or matched_iocs["urls"]:
-        correlation_reasons.append("One or more observed indicators matched the configured local IOC watchlist.")
-
-    # Correlation is a prioritization signal, not proof of maliciousness or attribution.
-    base_score = int(analysis.get("threat_assessment", {}).get("threat_score", 0))
-    correlation_bonus = 0
-    if related_email_count:
-        correlation_bonus += min(10, related_email_count * 5)
-    if matched_iocs["ips"] or matched_iocs["domains"] or matched_iocs["urls"]:
-        correlation_bonus += 15
-    if correlation_bonus:
-        updated_score = min(100, base_score + correlation_bonus)
-        assessment = analysis["threat_assessment"]
-        assessment["threat_score"] = updated_score
-        if updated_score >= 70:
-            assessment["risk_tier"] = "CRITICAL RISK (IMPERSONATION / PHISHING)"
-        elif updated_score >= 40:
-            assessment["risk_tier"] = "ELEVATED RISK"
-        else:
-            assessment["risk_tier"] = "CLEAN / VERIFIED"
-        assessment.setdefault("threat_reasons", []).append(
-            f"Correlation Intelligence: +{correlation_bonus} prioritization points from related infrastructure/IOC matches."
-        )
-
-    # Infrastructure confidence describes evidence quality, not attacker identity.
-    evidence_points = 0
-    if analysis.get("hops"): evidence_points += 1
-    if analysis.get("origin_investigation", {}).get("ip") not in (None, "", "Unknown", "127.0.0.1"): evidence_points += 1
-    if analysis.get("dns_authentication", {}).get("spf"): evidence_points += 1
-    if analysis.get("dns_authentication", {}).get("dmarc"): evidence_points += 1
-    if related_email_count: evidence_points += 1
-    confidence = "LOW" if evidence_points <= 1 else ("MEDIUM" if evidence_points <= 3 else "HIGH")
-
-    analysis["correlation"] = {
-        "graph_node_id": message_node,
-        "related_email_count": related_email_count,
-        "related_email_node_ids": sorted(related_cases),
-        "campaign_id": campaign_id,
-        "correlation_reasons": correlation_reasons,
-        "ioc_matches": matched_iocs,
-        "infrastructure_confidence": confidence,
-        "attribution_status": "Infrastructure correlation support only; sender/threat-actor identity not established."
-    }
-    analysis["graph"] = {
-        "nodes": [n for n in CORRELATION_GRAPH["nodes"] if n.get("id") == message_node or n.get("id") in entity_ids or n.get("id") in related_cases],
-        "edges": [e for e in CORRELATION_GRAPH["edges"] if e.get("source") in ({message_node} | entity_ids | related_cases) or e.get("target") in ({message_node} | entity_ids | related_cases)]
-    }
-    save_correlation_graph()
-    return analysis
 
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
@@ -442,7 +203,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
     # Fast duplicate check before any network call.
     with ALERT_FILE_LOCK:
         if unique_key in SENT_ALERTS or unique_msg_id in SENT_ALERTS:
-            print(f"[ALERT] Duplicate suppressed for source message {unique_msg_id}")
             return False
 
     try:
@@ -646,12 +406,6 @@ def dispatch_soc_alert_email(headers, recipient_email, case_id, analysis, unique
                 record_alert_dispatched(new_id)
                 record_alert_dispatched(f"ALERT_SENT_{new_id}")
                 apply_soc_label_to_message(headers, new_id, mark_as_read=True)
-
-            # Also persist the source message as dispatched ONLY after Gmail
-            # accepted the alert. This prevents a successful alert from being
-            # sent again on a later monitor cycle.
-            record_alert_dispatched(unique_msg_id)
-            record_alert_dispatched(unique_key)
 
             print(f"[SUCCESS] Dispatched SOC alert for Case #{case_id} to {recipient_email}")
             return True
@@ -861,10 +615,6 @@ def analyze_email_forensics(raw_bytes: bytes):
             except Exception:
                 pass
 
-    dkim_header = str(msg.get("DKIM-Signature", "")).strip()
-    dkim_status = "Present (signature header observed)" if dkim_header else "Not observed"
-    domain_intelligence = run_domain_intelligence(sender_domain, resolver) if sender_domain else {"domain": "", "a": [], "mx": [], "ns": [], "txt": []}
-
     body_content = extract_email_body_text(msg)
     normalized_subject = normalize_email_text(subject)
     normalized_body = normalize_email_text(body_content)
@@ -928,7 +678,7 @@ def analyze_email_forensics(raw_bytes: bytes):
     if not threat_reasons:
         threat_reasons.append("No high-confidence threat indicators were identified.")
 
-    result = {
+    return {
         "metadata": {
             "subject": subject,
             "from": sender,
@@ -944,17 +694,13 @@ def analyze_email_forensics(raw_bytes: bytes):
         },
         "dns_authentication": {
             "spf": spf_status,
-            "dmarc": dmarc_status,
-            "dkim": dkim_status
+            "dmarc": dmarc_status
         },
-        "domain_intelligence": domain_intelligence,
         "origin_investigation": origin_geo or {"ip": "127.0.0.1", "country": "Unknown", "city": "Unknown", "lat": 0.0, "lon": 0.0, "maps_url": "https://maps.google.com", "isp": "Unknown", "node_type": "Unknown"},
         "hops": hops,
         "urls": extracted_urls,
         "social_engineering_cues": list(set(found_cues))
     }
-
-    return correlate_analysis(result)
 
 # -------------------------------------------------------------
 # 3. 24/7 BACKGROUND MONITORING WORKER (RECURSION-PROOF)
@@ -1047,53 +793,21 @@ def _background_threat_monitor():
                     snippet = str(meta_data.get("snippet", "")).lower()
                     clean_subj = sanitize_to_ascii(subj).lower()
 
-                    # ---------------------------------------------------------
-                    # ABSOLUTE SOC-ALERT LOOP BREAKER
-                    # ---------------------------------------------------------
-                    # Our own SOC alert is a newly generated Gmail message, so it
-                    # must NEVER enter forensic scoring. Otherwise its headers can
-                    # look suspicious and it may be classified as spoofed/BEC,
-                    # causing an alert -> alert -> alert loop.
-                    #
-                    # Check explicit Nexora markers FIRST, before fetching/parsing
-                    # the raw message or calculating a threat score.
-                    source_sender = sndr.strip().lower()
-                    source_from_matches_mailbox = (
-                        bool(email_addr)
-                        and email_addr.lower() in source_sender
-                    )
-                    source_is_self_sent = source_sender.startswith(
-                        f"{email_addr.lower()} "
-                    ) or f"<{email_addr.lower()}>" in source_sender
-
                     self_markers = (
                         is_nexora_header == "alert"
                         or bool(alert_id)
                         or "[soc alert]" in clean_subj
                         or "soc incident alert" in clean_subj
-                        or "threat detected" in clean_subj
-                        or "nexora sentinel" in clean_subj
                         or "ai threat sentinel" in clean_subj
                         or "nexora sentinel" in snippet
                         or "incident dispatch" in snippet
-                        or "open forensic case dashboard" in snippet
                         or "nexora.sentinel" in msg_uuid.lower()
                         or msg_uuid in SENT_ALERTS
                         or alert_id in SENT_ALERTS
-                        or source_is_self_sent
-                        or source_from_matches_mailbox
                     )
-
                     if self_markers:
-                        print(
-                            f"[LOOP-BREAKER] Ignoring Nexora/self-generated message "
-                            f"{msg_id} | subject={subj[:100]!r}"
-                        )
-                        apply_soc_label_to_message(
-                            headers, msg_id, mark_as_read=True
-                        )
+                        apply_soc_label_to_message(headers, msg_id, mark_as_read=True)
                         record_alert_dispatched(msg_id)
-                        record_alert_dispatched(f"ALERT_SENT_{msg_id}")
                         if msg_uuid:
                             record_alert_dispatched(msg_uuid)
                         if alert_id:
@@ -1110,37 +824,13 @@ def _background_threat_monitor():
                         continue
 
                     raw_bytes = base64.urlsafe_b64decode(raw_base64.encode("ascii"))
-
-                    # Second loop-protection layer: never score an email that was
-                    # generated by this Sentinel instance.
-                    raw_lower = raw_bytes.decode("utf-8", errors="ignore").lower()
-                    raw_self_markers = (
-                        "x-nexora-sentinel: alert" in raw_lower
-                        or "x-nexora-alert-id:" in raw_lower
-                        or "nexora.sentinel" in raw_lower
-                        or "open forensic case dashboard" in raw_lower
-                    )
-                    if raw_self_markers:
-                        print(
-                            f"[LOOP-BREAKER] Raw-message marker detected; "
-                            f"skipping forensic analysis for {msg_id}"
-                        )
-                        apply_soc_label_to_message(
-                            headers, msg_id, mark_as_read=True
-                        )
-                        record_alert_dispatched(msg_id)
-                        record_alert_dispatched(f"ALERT_SENT_{msg_id}")
-                        continue
-
                     analysis = analyze_email_forensics(raw_bytes)
                     threat_score = int(analysis["threat_assessment"]["threat_score"])
-                    print(f"[SCAN] {msg_id}: threat_score={threat_score}%")
 
-                    # Mark the source email as scanned, but DO NOT add its ID to
-                    # SENT_ALERTS yet. dispatch_soc_alert_email() uses that set as
-                    # its duplicate-send guard. Adding msg_id here would cause the
-                    # dispatcher to immediately return False every time.
                     apply_soc_label_to_message(headers, msg_id, mark_as_read=False)
+                    record_alert_dispatched(msg_id)
+                    if msg_uuid:
+                        record_alert_dispatched(msg_uuid)
 
                     target_email = email_addr
                     if configured_soc_email and configured_soc_email != "CONNECTED_MAILBOX" and "@" in configured_soc_email:
@@ -1149,24 +839,7 @@ def _background_threat_monitor():
                     if threat_score >= 40:
                         case_id = str(uuid.uuid4())[:8]
                         save_case_record(case_id, analysis)
-
-                        sent = dispatch_soc_alert_email(
-                            headers,
-                            target_email,
-                            case_id,
-                            analysis,
-                            msg_id
-                        )
-
-                        if sent:
-                            print(f"[ALERT] SOC alert successfully sent for source message {msg_id}")
-                        else:
-                            print(f"[ALERT] SOC alert was not sent for source message {msg_id}")
-                    else:
-                        # Only record non-alert messages as processed here.
-                        record_alert_dispatched(msg_id)
-                        if msg_uuid:
-                            record_alert_dispatched(msg_uuid)
+                        dispatch_soc_alert_email(headers, target_email, case_id, analysis, msg_id)
 
                 finally:
                     with ALERT_FILE_LOCK:
@@ -1500,16 +1173,6 @@ def scan_demo():
     analysis['case_id'] = case_id
     analysis['report_url'] = f"https://aiemailthreat.onrender.com/?case={quote(str(case_id))}"
     return jsonify(analysis)
-
-@app.route('/api/get_graph/<case_id>', methods=['GET'])
-def get_graph(case_id):
-    global CASES_DB
-    if case_id not in CASES_DB:
-        CASES_DB = load_cases_from_disk()
-    case = CASES_DB.get(case_id)
-    if not case:
-        return jsonify({"error": "Case not found"}), 404
-    return jsonify(case.get("graph", {"nodes": [], "edges": []}))
 
 @app.route('/api/get_case/<case_id>', methods=['GET'])
 def get_case(case_id):
