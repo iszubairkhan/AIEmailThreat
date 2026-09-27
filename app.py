@@ -22,8 +22,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "").strip() or os.urandom(32).hex()
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "474486731193-h4beukvlb1l3ca5napbtnb2nvcti3bq0.apps.googleusercontent.com").strip()
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "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").strip()
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
 REDIRECT_URI = "https://aiemailthreat.onrender.com/auth/callback"
 
 CASES_FILE = "cases_cache.json"
@@ -451,6 +451,18 @@ def extract_email_body_text(msg):
 
     return "\n".join(text_content)
 
+def normalize_email_text(text_value):
+    """Convert HTML email content to readable text and normalize whitespace."""
+    if not text_value:
+        return ""
+    value = str(text_value)
+    value = re.sub(r"(?is)<(script|style).*?>.*?</\\1>", " ", value)
+    value = re.sub(r"(?i)<br\\s*/?>", "\n", value)
+    value = re.sub(r"(?i)</(p|div|li|tr|h[1-6])\\s*>", "\n", value)
+    value = re.sub(r"(?s)<[^>]+>", " ", value)
+    value = html.unescape(value)
+    return re.sub(r"\\s+", " ", value).strip()
+
 def get_ip_intelligence(ip_address: str):
     if not ip_address or ip_address in ["127.0.0.1", "localhost"]:
         return {
@@ -604,15 +616,18 @@ def analyze_email_forensics(raw_bytes: bytes):
                 pass
 
     body_content = extract_email_body_text(msg)
-    full_text_to_scan = f"{subject}\n{body_content}"
+    normalized_subject = normalize_email_text(subject)
+    normalized_body = normalize_email_text(body_content)
+    full_text_to_scan = f"{normalized_subject}\n{normalized_body}".strip()
+    scan_text = full_text_to_scan.lower()
 
     found_cues = []
     for pattern in BEC_URGENCY_PATTERNS:
         matches = re.findall(pattern, full_text_to_scan, re.IGNORECASE)
         if matches:
             found_cues.extend(matches)
-    extracted_urls = re.findall(r"https?://[^\s<>\"')]+|www\.[^\s<>\"')]+", body_content)
 
+    extracted_urls = re.findall(r"https?://[^\s<>\"')]+|www\.[^\s<>\"')]+", body_content, re.IGNORECASE)
     threat_score = 0
     threat_reasons = []
 
@@ -626,14 +641,33 @@ def analyze_email_forensics(raw_bytes: bytes):
 
     if origin_geo and origin_geo.get("is_anonymized") and not is_trusted_esp:
         threat_score += 25
-        threat_reasons.append(f"Anonymized Sending Node: Origin IP belongs to {origin_geo['isp']} (Datacenter / VPN).")
+        threat_reasons.append(f"Anonymized Sending Node: Origin IP belongs to {origin_geo.get('isp', 'Unknown')} (Datacenter / VPN).")
 
-    if found_cues:
-        nlp_penalty = 30 if len(found_cues) >= 2 else 15
+    cue_groups = {
+        "executive_impersonation": (15, "Executive impersonation language", [r"\bceo\b", r"\bchief executive\b", r"\bexecutive office\b", r"\bmanaging director\b", r"\bdirector\b", r"\bfrom the ceo\b"]),
+        "payment_fraud": (15, "Payment / bank-transfer pressure", [r"\bwire transfer\b", r"\bbank payment\b", r"\bvendor payment\b", r"\bpayment\b", r"\btransfer\b", r"\bbank details\b", r"\baccount details\b"]),
+        "urgency_pressure": (10, "Artificial urgency / time pressure", [r"\burgent\b", r"\bimmediately\b", r"\bas soon as possible\b", r"\btoday\b", r"\btime[- ]sensitive\b", r"\baction required\b", r"\bwithin \d+ (?:minutes?|hours?|days?)\b"]),
+        "confidentiality_pressure": (10, "Confidentiality / secrecy pressure", [r"\bconfidential\b", r"\bdo not discuss\b", r"\bdo not share\b", r"\bkeep this private\b", r"\bdo not tell\b"]),
+        "invoice_pressure": (10, "Invoice / accounts-payable pressure", [r"\binvoice\b", r"\boverdue\b", r"\boutstanding invoice\b", r"\baccounts payable\b", r"\baccounts department\b"]),
+        "account_compromise": (15, "Account-compromise / credential-verification language", [r"\bunauthorized login\b", r"\bcompromised account\b", r"\bverify your password\b", r"\bverify your account\b", r"\bupdate credentials\b", r"\breset password\b"]),
+    }
+
+    matched_categories = []
+    for category, (weight, label, patterns) in cue_groups.items():
+        if any(re.search(pattern, scan_text, re.IGNORECASE) for pattern in patterns):
+            matched_categories.append(category)
+            threat_score += weight
+            threat_reasons.append(f"Linkless Threat Indicator: {label} (+{weight}).")
+
+    if len(matched_categories) >= 3:
+        threat_reasons.append(f"Multi-Vector Linkless BEC Pattern: {len(matched_categories)} independent social-engineering categories detected.")
+
+    if found_cues and not matched_categories:
+        nlp_penalty = 30 if len(set(found_cues)) >= 2 else 15
         threat_score += nlp_penalty
-        threat_reasons.append(f"Social Engineering Threat Cues: Detected keywords ({', '.join(set(found_cues))}).")
+        threat_reasons.append(f"Social Engineering Threat Cues: Detected keywords ({', '.join(sorted(set(found_cues)))}) .")
 
-    if extracted_urls and found_cues:
+    if extracted_urls and (found_cues or matched_categories):
         threat_score += 25
         threat_reasons.append(f"Suspicious Embedded URLs: Discovered {len(extracted_urls)} link(s) combined with high-pressure cues.")
     elif extracted_urls and is_spoofed_sender:
@@ -641,9 +675,8 @@ def analyze_email_forensics(raw_bytes: bytes):
         threat_reasons.append("Unauthenticated links inside spoofed sender envelope.")
 
     threat_score = min(threat_score, 100)
-
     if not threat_reasons:
-        threat_reasons.append("Verified Sender: Clean return-path alignment and authenticated corporate delivery.")
+        threat_reasons.append("No high-confidence threat indicators were identified.")
 
     return {
         "metadata": {
